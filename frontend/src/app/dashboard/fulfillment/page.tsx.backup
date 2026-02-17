@@ -1,0 +1,375 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { ChartContainer } from "@/components/dashboard/ChartContainer";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
+
+// Debounce function to prevent rapid API calls
+const debounce = (func: Function, delay: number) => {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: any[]) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(null, args), delay);
+  };
+};
+
+// Tipos para los datos de fulfillment
+type FulfillmentData = {
+  databaseName: string;
+  fechaInicio: string | null;
+  fechaFin: string | null;
+  totalPedidos: number;
+  totalSolicitado: number;
+  totalFaltantes: number;
+  tasaSatisfaccion: number;
+  pedidosPorDia: Array<{
+    dia: string;
+    pedidos: number;
+    faltantes: number;
+  }>;
+  estadoFulfillment: Array<{
+    name: string;
+    value: number;
+    color: string;
+  }>;
+  productosConShortage: Array<{
+    categoria: string;
+    monto: number;
+    cantidad: number;
+  }>;
+  productosTop: Array<{
+    nombre: string;
+    cantidad_solicitada: number;
+    cantidad_faltante: number;
+    porcentaje_faltante: number;
+  }>;
+  pedidosRecientes: Array<{
+    id: string;
+    cliente: string;
+    monto_faltante: number;
+    estado: string;
+    fecha: string;
+  }>;
+  generatedAt: string;
+};
+
+export default function FulfillmentPage() {
+  const [data, setData] = useState<FulfillmentData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
+
+  // Fetch data from API con filtros de fecha (debounced)
+  const fetchFulfillmentData = useCallback(
+    async () => {
+      if (!fechaInicio || !fechaFin) {
+        alert('Por favor seleccione un rango de fechas');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Convertir fechas al formato que espera el backend
+        const convertToBackendFormat = (dateStr: string): string => {
+          return dateStr.replace(/-/g, ''); // YYYY-MM-DD -> YYYYMMDD
+        };
+        
+        const params = new URLSearchParams();
+        params.append('fechaInicio', convertToBackendFormat(fechaInicio));
+        params.append('fechaFin', convertToBackendFormat(fechaFin));
+        
+        const response = await fetch(`/api/fulfillment?${params}`);
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error.message || 'Error desconocido');
+        }
+        
+        setData(result);
+      } catch (error) {
+        console.error('Error fetching fulfillment data:', error);
+        alert('Error al cargar los datos. Por favor intente nuevamente.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fechaInicio, fechaFin]
+  );
+
+  // Debounced version to prevent rapid API calls
+  const debouncedFetchFulfillmentData = useCallback(
+    debounce(fetchFulfillmentData, 1000), // 1 second delay
+    [fetchFulfillmentData]
+  );
+
+  // Cargar datos iniciales (últimos 90 días por defecto)
+  useEffect(() => {
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const today = new Date();
+    
+    setFechaInicio(ninetyDaysAgo.toISOString().split('T')[0]);
+    setFechaFin(today.toISOString().split('T')[0]);
+  }, []); // ← Agregar array de dependencias vacío
+
+  // Remove auto-fetch when dates change - user will manually apply
+  // useEffect(() => {
+  //   if (fechaInicio && fechaFin) {
+  //     fetchFulfillmentData();
+  //   }
+  // }, [fechaInicio, fechaFin]);
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat("es-AR").format(num);
+  };
+
+  const getStatusColor = (estado: string) => {
+    switch (estado) {
+      case "completado":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      case "parcial":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+      case "con_faltantes":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+    }
+  };
+
+  const getStatusText = (estado: string) => {
+    switch (estado) {
+      case "completado":
+        return "Completado";
+      case "parcial":
+        return "Parcial";
+      case "con_faltantes":
+        return "Con Faltantes";
+      default:
+        return estado;
+    }
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout
+        title="FullFillment - Macromercado"
+        subtitle="Panel de control de fulfillment"
+        kpiCards={[]}
+        charts={[]}
+        loading={true}
+      />
+    );
+  }
+
+  if (!data) {
+    return (
+      <DashboardLayout
+        title="FullFillment - Macromercado"
+        subtitle="Panel de control de fulfillment"
+        kpiCards={[]}
+        charts={[]}
+      >
+        <div className="text-center">
+          <p className="text-lg">Error al cargar los datos</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // KPI Cards para fulfillment
+  const kpiCards = [
+    {
+      title: "Total Pedidos",
+      value: formatNumber(data.totalPedidos),
+      icon: "📦",
+      color: "blue" as const,
+    },
+    {
+      title: "Total Solicitado",
+      value: formatNumber(data.totalSolicitado),
+      icon: "📋",
+      color: "green" as const,
+    },
+    {
+      title: "Total Faltantes",
+      value: formatNumber(data.totalFaltantes),
+      icon: "⚠️",
+      color: "red" as const,
+    },
+    {
+      title: "Tasa Satisfacción",
+      value: `${data.tasaSatisfaccion.toFixed(1)}%`,
+      icon: "✅",
+      color: "green" as const,
+    },
+  ];
+
+  // Charts para fulfillment
+  const charts = [
+    {
+      title: "Pedidos y Faltantes por Día",
+      type: "line" as const,
+      data: data.pedidosPorDia,
+      height: 300,
+    },
+    {
+      title: "Estado de Fulfillment",
+      type: "pie" as const,
+      data: data.estadoFulfillment,
+      height: 300,
+    },
+    {
+      title: "Productos con más Shortage",
+      type: "bar" as const,
+      data: data.productosConShortage,
+      height: 300,
+    },
+  ];
+
+  // Tables para fulfillment
+  const tables = [
+    {
+      title: "Productos con Mayor Problema de Shortage",
+      columns: ["Producto", "Solicitado", "Faltante", "% Faltante"],
+      rows: data.productosTop.map(producto => [
+        producto.nombre,
+        formatNumber(producto.cantidad_solicitada),
+        formatNumber(producto.cantidad_faltante),
+        `${producto.porcentaje_faltante.toFixed(1)}%`
+      ])
+    },
+    {
+      title: "Pedidos Recientes con Problemas",
+      columns: ["Pedido", "Centro", "Faltante", "Estado", "Fecha"],
+      rows: data.pedidosRecientes.map(pedido => [
+        pedido.id,
+        pedido.cliente,
+        formatNumber(pedido.monto_faltante),
+        getStatusText(pedido.estado),
+        pedido.fecha
+      ])
+    }
+  ];
+
+  return (
+    <DashboardLayout
+      title="FullFillment - Macromercado"
+      subtitle="Panel de control de fulfillment"
+      kpiCards={data ? kpiCards : []}
+      charts={data ? charts : []}
+      tables={data ? tables : []}
+      loading={loading}
+    >
+      {/* Date Range Filter - Moved to top */}
+      <DateRangeFilter
+        fechaInicio={fechaInicio}
+        fechaFin={fechaFin}
+        onFechaInicioChange={setFechaInicio}
+        onFechaFinChange={setFechaFin}
+        onApply={debouncedFetchFulfillmentData}
+        loading={loading}
+      />
+      
+      {/* Database Info */}
+      {data && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                🗄️ Base de Datos: {data.databaseName}
+              </h4>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Última actualización: {new Date(data.generatedAt).toLocaleString('es-AR')}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                {data.totalPedidos} pedidos
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400">
+                en el rango seleccionado
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {data && data.totalPedidos === 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-8 mb-8 text-center">
+          <div className="text-6xl mb-4">📊</div>
+          <h3 className="text-xl font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+            No hay datos en este rango
+          </h3>
+          <p className="text-yellow-700 dark:text-yellow-300 mb-6">
+            No se encontraron registros de fulfillment para el período seleccionado.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-yellow-700 dark:text-yellow-300">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+              <h4 className="font-medium mb-2">💡 Sugerencias:</h4>
+              <ul className="space-y-1 text-left">
+                <li>• Prueba fechas de 2024 o 2025</li>
+                <li>• Usa rangos más amplios (90+ días)</li>
+                <li>• Verifica fechas de fin de mes</li>
+                <li>• Prueba períodos de alta actividad</li>
+              </ul>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+              <h4 className="font-medium mb-2">📅 Rangos recomendados:</h4>
+              <div className="space-y-2 text-left">
+                <button 
+                  onClick={() => {
+                    const lastYear = new Date();
+                    lastYear.setFullYear(lastYear.getFullYear() - 1);
+                    const start = new Date(lastYear.getFullYear(), 0, 1);
+                    const end = new Date(lastYear.getFullYear(), 11, 31);
+                    setFechaInicio(start.toISOString().split('T')[0]);
+                    setFechaFin(end.toISOString().split('T')[0]);
+                  }}
+                  className="w-full text-left px-3 py-2 bg-yellow-100 dark:bg-yellow-800 rounded hover:bg-yellow-200 dark:hover:bg-yellow-700 transition-colors"
+                >
+                  📅 Todo el año pasado
+                </button>
+                <button 
+                  onClick={() => {
+                    const start = new Date(2024, 0, 1);
+                    const end = new Date(2024, 11, 31);
+                    setFechaInicio(start.toISOString().split('T')[0]);
+                    setFechaFin(end.toISOString().split('T')[0]);
+                  }}
+                  className="w-full text-left px-3 py-2 bg-yellow-100 dark:bg-yellow-800 rounded hover:bg-yellow-200 dark:hover:bg-yellow-700 transition-colors"
+                >
+                  📅 Todo 2024
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Custom charts with ChartContainer - Only show when data is available */}
+      {data && data.totalPedidos > 0 && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Pedidos y Faltantes por Día</h2>
+              <ChartContainer type="line" data={data.pedidosPorDia} height={300} />
+            </div>
+            
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Estado de Fulfillment</h2>
+              <ChartContainer type="pie" data={data.estadoFulfillment} height={300} />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Productos con más Shortage</h2>
+            <ChartContainer type="bar" data={data.productosConShortage} height={300} />
+          </div>
+        </>
+      )}
+    </DashboardLayout>
+  );
+}
