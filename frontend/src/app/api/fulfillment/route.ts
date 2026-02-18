@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fechaInicio = searchParams.get('fechaInicio') as string | null;
     const fechaFin = searchParams.get('fechaFin') as string | null;
+    const sku = searchParams.get('sku') as string | null;
     
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
     
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
     }
     if (fechaFin) {
       params.append('fechaFin', convertToBackendFormat(fechaFin));
+    }
+    if (sku) {
+      params.append('sku', sku);
     }
     
     const response = await fetch(`${backendUrl}/fulfillment?${params}`, {

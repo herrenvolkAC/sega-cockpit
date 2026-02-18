@@ -3,7 +3,7 @@ import { config } from "./config";
 
 let pool: sql.ConnectionPool | null = null;
 
-const getPool = async (): Promise<sql.ConnectionPool> => {
+export const getPool = async (): Promise<sql.ConnectionPool> => {
   if (pool) return pool;
   if (!config.mssqlConnectionString) {
     throw new Error("MSSQL_CONNECTION_STRING is required");
