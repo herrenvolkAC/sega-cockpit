@@ -4,6 +4,7 @@ import { healthRoute } from "./routes/health";
 import { statusRoute } from "./routes/status";
 import { detailRoute } from "./routes/detail";
 import { fulfillmentRoute } from "./routes/fulfillment";
+import { productivityRoute } from "./routes/productivity";
 
 const app = Fastify({
   logger: true,
@@ -15,6 +16,7 @@ const start = async (): Promise<void> => {
     await app.register(statusRoute);
     await app.register(detailRoute);
     await app.register(fulfillmentRoute);
+    await app.register(productivityRoute);
 
     await app.listen({ port: config.port, host: "0.0.0.0" });
   } catch (err) {
