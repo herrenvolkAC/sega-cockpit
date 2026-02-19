@@ -20,28 +20,29 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
       const startedAt = Date.now();
       const query = request.query as any;
       
-      // Extraer parámetros
-      const operacion = query.operacion as string;
-      const fromDate = query.from as string;
-      const toDate = query.to as string;
-      
-      console.log('Productivity request:', { operacion, fromDate, toDate });
-      
       // Validar parámetros
-      if (!operacion || operacion !== 'PICKING') {
-        const errorRes = {
-          ok: false,
-          error: { code: "INVALID_OPERATION", message: "Operación no válida. Solo PICKING es soportado." }
-        };
-        return reply.status(400).send(errorRes);
+      const { operacion, fromDate, toDate } = request.query as {
+        operacion: string;
+        fromDate: string;
+        toDate: string;
+      };
+
+      if (!fromDate || !toDate || !operacion) {
+        return reply.status(400).send({
+          error: {
+            message: 'Faltan parámetros requeridos: operacion, from, to'
+          }
+        });
       }
-      
-      if (!fromDate || !toDate) {
-        const errorRes = {
-          ok: false,
-          error: { code: "INVALID_DATES", message: "Se requieren fechas from y to" }
-        };
-        return reply.status(400).send(errorRes);
+
+      // Validar que la operación sea válida
+      const operacionesValidas = ['PICKING', 'CROSSDOCKING', 'EXTRACCION', 'REPOSICION'];
+      if (!operacionesValidas.includes(operacion.toUpperCase())) {
+        return reply.status(400).send({
+          error: {
+            message: 'Operación no válida. Debe ser: PICKING, CROSSDOCKING, EXTRACCION o REPOSICION'
+          }
+        });
       }
       
       // Convertir fechas al formato YYYY-MM-DD
@@ -62,123 +63,130 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const connection = await getPool();
         
         // 1) DAILY (serie diaria grupal)
-        const dailyResult = await connection.request()
-          .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
-          .query(`
-            WITH e AS (
-              SELECT *
-              FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
-                AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
-            ),
-            ops AS (
-              SELECT
-                fecha_operativa,
-                usuario_id,
-                operacion_rf_id,
-                MIN(inicio_dt) as inicio_dt,
-                MAX(fin_dt) as fin_dt
-              FROM e
-              WHERE operacion_rf_id IS NOT NULL
-                AND inicio_dt IS NOT NULL
-                AND fin_dt IS NOT NULL
-              GROUP BY fecha_operativa, usuario_id, operacion_rf_id
-            ),
-            tiempos AS (
-              SELECT 
-                fecha_operativa, 
-                SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) as segundos
-              FROM ops
-              GROUP BY fecha_operativa
-            ),
-            vol AS (
-              SELECT 
-                fecha_operativa, 
-                COUNT(*) as movimientos, 
-                SUM(cantidad) as unidades
-              FROM e
-              GROUP BY fecha_operativa
-            )
-            SELECT
-              v.fecha_operativa,
-              v.movimientos,
-              v.unidades,
-              ISNULL(t.segundos,0) as segundos,
-              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.movimientos * 3600.0 / t.segundos END as mov_x_h,
-              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos END as uni_x_h
-            FROM vol v
-            LEFT JOIN tiempos t ON t.fecha_operativa = v.fecha_operativa
-            ORDER BY v.fecha_operativa
-          `);
-
-        // 2) BY UOM (para tarjetas de CAJA / UNIDAD / PACK)
-        const byUomResult = await connection.request()
-          .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
-          .query(`
-            SELECT
-              UPPER(LTRIM(RTRIM(ISNULL(uom_text,'OTROS')))) as uom,
-              SUM(cantidad) as unidades
+        const dailyQuery = `
+          WITH e AS (
+            SELECT *
             FROM bi.fact_operacion_evento
-            WHERE operacion = 'PICKING'
+            WHERE operacion = @operacion
               AND fecha_operativa >= @from_date
               AND fecha_operativa < @to_date
-            GROUP BY UPPER(LTRIM(RTRIM(ISNULL(uom_text,'OTROS'))))
-          `);
-
-        // 3) KPIS (operarios + horas promedio por operario)
-        const kpisResult = await connection.request()
+          ),
+          ops AS (
+            SELECT
+              fecha_operativa,
+              usuario_id,
+              operacion_rf_id,
+              MIN(inicio_dt) as inicio_dt,
+              MAX(fin_dt) as fin_dt
+            FROM e
+            WHERE operacion_rf_id IS NOT NULL
+              AND inicio_dt IS NOT NULL
+              AND fin_dt IS NOT NULL
+            GROUP BY fecha_operativa, usuario_id, operacion_rf_id
+          ),
+          tiempos AS (
+            SELECT 
+              fecha_operativa, 
+              SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) as segundos
+            FROM ops
+            GROUP BY fecha_operativa
+          ),
+          vol AS (
+            SELECT 
+              fecha_operativa, 
+              COUNT(*) as movimientos, 
+              SUM(cantidad) as unidades
+            FROM e
+            GROUP BY fecha_operativa
+          )
+          SELECT
+            v.fecha_operativa,
+            v.movimientos,
+            v.unidades,
+            ISNULL(t.segundos,0) as segundos,
+            CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.movimientos * 3600.0 / t.segundos END as mov_x_h,
+            CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos END as uni_x_h
+          FROM vol v
+          LEFT JOIN tiempos t ON t.fecha_operativa = v.fecha_operativa
+          ORDER BY v.fecha_operativa
+        `;
+        const dailyResult = await connection.request()
+          .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
           .input('to_date', sql.Date, to_date)
-          .query(`
-            WITH e AS (
-              SELECT *
-              FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
-                AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
-            ),
-            ops AS (
-              SELECT
-                fecha_operativa,
-                usuario_id,
-                operacion_rf_id,
-                MIN(inicio_dt) as inicio_dt,
-                MAX(fin_dt) as fin_dt
-              FROM e
-              WHERE operacion_rf_id IS NOT NULL
-                AND inicio_dt IS NOT NULL
-                AND fin_dt IS NOT NULL
-              GROUP BY fecha_operativa, usuario_id, operacion_rf_id
-            ),
-            t_user_day AS (
-              SELECT 
-                fecha_operativa, 
-                usuario_id, 
-                SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) as segundos
-              FROM ops
-              GROUP BY fecha_operativa, usuario_id
-            )
+          .query(dailyQuery);
+
+        // 2) BY UOM (para tarjetas de CAJA / UNIDAD / PACK)
+        const byUomQuery = `
+          SELECT
+            UPPER(LTRIM(RTRIM(ISNULL(uom_text,'OTROS')))) as uom,
+            SUM(cantidad) as unidades
+          FROM bi.fact_operacion_evento
+          WHERE operacion = @operacion
+            AND fecha_operativa >= @from_date
+            AND fecha_operativa < @to_date
+          GROUP BY UPPER(LTRIM(RTRIM(ISNULL(uom_text,'OTROS'))))
+        `;
+        const byUomResult = await connection.request()
+          .input('operacion', sql.NVarChar, operacion)
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .query(byUomQuery);
+
+        // 3) KPIS (operarios + horas promedio por operario)
+        const kpisQuery = `
+          WITH e AS (
+            SELECT *
+            FROM bi.fact_operacion_evento
+            WHERE operacion = @operacion
+              AND fecha_operativa >= @from_date
+              AND fecha_operativa < @to_date
+          ),
+          ops AS (
             SELECT
+              fecha_operativa,
+              usuario_id,
+              operacion_rf_id,
+              MIN(inicio_dt) as inicio_dt,
+              MAX(fin_dt) as fin_dt
+            FROM e
+            WHERE operacion_rf_id IS NOT NULL
+              AND inicio_dt IS NOT NULL
+              AND fin_dt IS NOT NULL
+            GROUP BY fecha_operativa, usuario_id, operacion_rf_id
+          ),
+          t_user_day AS (
+            SELECT 
+              fecha_operativa, 
+              usuario_id, 
+              SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) as segundos
+            FROM ops
+            GROUP BY fecha_operativa, usuario_id
+          )
+          SELECT
               COUNT(DISTINCT usuario_id) as operarios,
               CASE
                 WHEN COUNT(DISTINCT usuario_id) > 0
                   THEN (SUM(segundos) / 3600.0) / COUNT(DISTINCT usuario_id)
               END as horas_promedio_por_operario
             FROM t_user_day
-          `);
+        `;
+        const kpisResult = await connection.request()
+          .input('operacion', sql.NVarChar, operacion)
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .query(kpisQuery);
 
         // 4) PER OPERATOR (grilla)
         const perOperatorResult = await connection.request()
+          .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
           .input('to_date', sql.Date, to_date)
           .query(`
             WITH e AS (
               SELECT *
               FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
+              WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
                 AND fecha_operativa < @to_date
             ),
@@ -235,13 +243,14 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
 
         // 5) DAILY PER OPERATOR (para gráfico de líneas por operario)
         const dailyPerOperatorResult = await connection.request()
+          .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
           .input('to_date', sql.Date, to_date)
           .query(`
             WITH e AS (
               SELECT *
               FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
+              WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
                 AND fecha_operativa < @to_date
             ),
@@ -290,7 +299,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
             LEFT JOIN (
               SELECT DISTINCT usuario_id, operario, legajo
               FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
+              WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
                 AND fecha_operativa < @to_date
                 AND operario IS NOT NULL
@@ -301,13 +310,14 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
 
         // 6) DAILY DETAIL GRID (para grilla detallada por operario y día)
         const dailyDetailGridResult = await connection.request()
+          .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
           .input('to_date', sql.Date, to_date)
           .query(`
             WITH e AS (
               SELECT *
               FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
+              WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
                 AND fecha_operativa < @to_date
             ),
@@ -355,7 +365,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
             LEFT JOIN (
               SELECT DISTINCT usuario_id, operario, legajo
               FROM bi.fact_operacion_evento
-              WHERE operacion = 'PICKING'
+              WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
                 AND fecha_operativa < @to_date
                 AND operario IS NOT NULL

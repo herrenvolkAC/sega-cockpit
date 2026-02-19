@@ -4,15 +4,15 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   
   const operacion = searchParams.get('operacion');
-  const fromDate = searchParams.get('from');
-  const toDate = searchParams.get('to');
+  const fromDate = searchParams.get('fromDate');
+  const toDate = searchParams.get('toDate');
   
   // Validar parámetros
-  if (!operacion || operacion !== 'PICKING') {
+  if (!operacion || !['PICKING', 'CROSSDOCKING', 'EXTRACCION', 'REPOSICION'].includes(operacion.toUpperCase())) {
     return NextResponse.json(
       { 
         ok: false, 
-        error: { code: "INVALID_OPERATION", message: "Operación no válida. Solo PICKING es soportado." }
+        error: { code: "INVALID_OPERATION", message: "Operación no válida. Debe ser: PICKING, CROSSDOCKING, EXTRACCION o REPOSICION" }
       },
       { status: 400 }
     );
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         ok: false, 
-        error: { code: "INVALID_DATES", message: "Se requieren fechas from y to" }
+        error: { code: "INVALID_DATES", message: "Se requieren fechas fromDate y toDate" }
       },
       { status: 400 }
     );
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     // Construir URL del backend
     const params = new URLSearchParams();
     params.append('operacion', operacion);
-    params.append('from', fromDate);
-    params.append('to', toDate);
+    params.append('fromDate', fromDate);
+    params.append('toDate', toDate);
     
     const backendUrl = `${process.env.BACKEND_URL || 'http://localhost:3001'}/productividad?${params}`;
     

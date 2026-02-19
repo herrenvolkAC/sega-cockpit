@@ -72,13 +72,14 @@ export default function ProductivityPage() {
   const [loading, setLoading] = useState(false);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  const [operacion, setOperacion] = useState('PICKING');
 
   // Debug: Log inicial
   console.log('ProductivityPage mounted');
 
   // Fetch data from API
   const fetchProductivityData = useCallback(async () => {
-    console.log('fetchProductivityData called', { fechaInicio, fechaFin });
+    console.log('fetchProductivityData called', { fechaInicio, fechaFin, operacion });
     
     if (!fechaInicio || !fechaFin) {
       alert('Por favor seleccione un rango de fechas');
@@ -89,9 +90,9 @@ export default function ProductivityPage() {
     
     try {
       const params = new URLSearchParams();
-      params.append('operacion', 'PICKING');
-      params.append('from', fechaInicio);
-      params.append('to', fechaFin);
+      params.append('operacion', operacion);
+      params.append('fromDate', fechaInicio);
+      params.append('toDate', fechaFin);
       
       const url = `/api/productividad?${params}`;
       console.log('Requesting URL:', url);
@@ -120,7 +121,7 @@ export default function ProductivityPage() {
     } finally {
       setLoading(false);
     }
-  }, [fechaInicio, fechaFin]);
+  }, [fechaInicio, fechaFin, operacion]);
 
   useEffect(() => {
     console.log('useEffect running');
@@ -158,10 +159,10 @@ export default function ProductivityPage() {
     <main className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-          Productividad - Macromercado
+          Productividad - {operacion === 'PICKING' ? 'Picking' : operacion === 'CROSSDOCKING' ? 'Crossdocking' : operacion === 'EXTRACCION' ? 'Extracción' : 'Reposición'} - Macromercado
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Panel de control de productividad de operaciones PICKING
+          Panel de control de productividad de operaciones {operacion}
         </p>
       </header>
 
@@ -175,13 +176,11 @@ export default function ProductivityPage() {
             <input
               type="date"
               value={fechaInicio}
-              onChange={(e) => {
-                console.log('Fecha inicio changed:', e.target.value);
-                setFechaInicio(e.target.value);
-              }}
+              onChange={(e) => setFechaInicio(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
+          
           <div className="flex-1 min-w-[200px]">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fecha Fin
@@ -193,6 +192,23 @@ export default function ProductivityPage() {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
+          
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Operación
+            </label>
+            <select
+              value={operacion}
+              onChange={(e) => setOperacion(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="PICKING">Picking</option>
+              <option value="CROSSDOCKING">Crossdocking</option>
+              <option value="EXTRACCION">Extracción</option>
+              <option value="REPOSICION">Reposición</option>
+            </select>
+          </div>
+          
           <div className="flex gap-2 mt-6">
             <button
               onClick={fetchProductivityData}
