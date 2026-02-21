@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import ExpandableGrid from '@/components/dashboard/ExpandableGrid';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // Tipos de datos
@@ -17,6 +18,7 @@ interface CardsData {
   cajas: number;
   unidades_uom: number;
   packs: number;
+  pallets: number;
   operarios: number;
   horas_promedio_por_operario: number;
 }
@@ -33,6 +35,7 @@ interface PerOperatorData {
   packs: number;
   uni_x_h: number;
   mov_x_h: number;
+  productividad_media: number;
 }
 
 interface DailyPerOperatorData {
@@ -159,7 +162,7 @@ export default function ProductivityPage() {
     <main className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-          Productividad - {operacion === 'PICKING' ? 'Picking' : operacion === 'CROSSDOCKING' ? 'Crossdocking' : operacion === 'EXTRACCION' ? 'Extracción' : 'Reposición'} - Macromercado
+          Productividad - {operacion === 'PICKING' ? 'Picking' : operacion === 'CROSSDOCKING' ? 'Crossdocking' : operacion === 'EXTRACCION' ? 'Extracción' : operacion === 'REPOSICION' ? 'Reposición' : operacion === 'ALMACENAJE' ? 'Almacenaje' : 'Recepción'} - Macromercado
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Panel de control de productividad de operaciones {operacion}
@@ -206,6 +209,8 @@ export default function ProductivityPage() {
               <option value="CROSSDOCKING">Crossdocking</option>
               <option value="EXTRACCION">Extracción</option>
               <option value="REPOSICION">Reposición</option>
+              <option value="ALMACENAJE">Almacenaje</option>
+              <option value="RECEPCION">Recepción</option>
             </select>
           </div>
           
@@ -234,7 +239,7 @@ export default function ProductivityPage() {
 
       {/* KPI Cards */}
       {data && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
@@ -250,12 +255,36 @@ export default function ProductivityPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Packs</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {data.cards.packs.toLocaleString('es-AR')}
+                </p>
+              </div>
+              <div className="text-2xl">�</div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Unidades</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   {data.cards.unidades_uom.toLocaleString('es-AR')}
                 </p>
               </div>
               <div className="text-2xl">📋</div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Pallets</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {data.cards.pallets.toLocaleString('es-AR')}
+                </p>
+              </div>
+              <div className="text-2xl">🏗️</div>
             </div>
           </div>
 
@@ -405,6 +434,87 @@ export default function ProductivityPage() {
               })()}
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Grilla Expandible de Productividad por Operario */}
+      {data && data.perOperator && data.perOperator.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+            Resumen de Productividad por Operario
+          </h2>
+          <ExpandableGrid
+            data={data.perOperator}
+            detailKey="usuario_id"
+            columns={[
+              {
+                key: 'operario',
+                label: 'Operario',
+                render: (value, row) => (
+                  <div>
+                    <div className="font-medium">{value}</div>
+                    <div className="text-xs text-gray-500">Legajo: {row.legajo}</div>
+                  </div>
+                )
+              },
+              {
+                key: 'unidades',
+                label: 'ULs',
+                render: (value) => value.toLocaleString('es-AR')
+              },
+              {
+                key: 'movimientos',
+                label: 'Movimientos',
+                render: (value) => value.toLocaleString('es-AR')
+              },
+              {
+                key: 'horas',
+                label: 'Horas',
+                render: (value) => value.toFixed(2)
+              },
+              {
+                key: 'uni_x_h',
+                label: 'ULs/Hora',
+                render: (value) => value.toFixed(2)
+              },
+              {
+                key: 'mov_x_h',
+                label: 'Movimientos/Hora',
+                render: (value) => value.toFixed(2)
+              },
+              {
+                key: 'productividad_media',
+                label: 'Productividad Media',
+                render: (value) => value.toFixed(2)
+              }
+            ]}
+            detailColumns={[
+              {
+                key: 'fecha_operativa',
+                label: 'Fecha',
+                render: (value) => new Date(value).toLocaleDateString('es-AR')
+              },
+              {
+                key: 'bultos',
+                label: 'Bultos',
+                render: (value) => value.toLocaleString('es-AR')
+              },
+              {
+                key: 'minutos',
+                label: 'Minutos',
+                render: (value) => value.toFixed(1)
+              },
+              {
+                key: 'productividad',
+                label: 'Productividad',
+                render: (value) => value.toFixed(2)
+              }
+            ]}
+            getDetailData={async (row) => {
+              // Filtrar datos diarios para este operario
+              return data.dailyDetailGrid.filter(detail => detail.usuario_id === row.usuario_id);
+            }}
+          />
         </div>
       )}
 

@@ -8,11 +8,11 @@ export async function GET(request: NextRequest) {
   const toDate = searchParams.get('toDate');
   
   // Validar parámetros
-  if (!operacion || !['PICKING', 'CROSSDOCKING', 'EXTRACCION', 'REPOSICION'].includes(operacion.toUpperCase())) {
+  if (!operacion || !['PICKING', 'CROSSDOCKING', 'EXTRACCION', 'REPOSICION', 'ALMACENAJE', 'RECEPCION'].includes(operacion.toUpperCase())) {
     return NextResponse.json(
       { 
         ok: false, 
-        error: { code: "INVALID_OPERATION", message: "Operación no válida. Debe ser: PICKING, CROSSDOCKING, EXTRACCION o REPOSICION" }
+        error: { code: "INVALID_OPERATION", message: "Operación no válida. Debe ser: PICKING, CROSSDOCKING, EXTRACCION, REPOSICION, ALMACENAJE o RECEPCION" }
       },
       { status: 400 }
     );

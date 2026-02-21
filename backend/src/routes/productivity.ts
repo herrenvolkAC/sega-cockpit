@@ -36,11 +36,11 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
       }
 
       // Validar que la operación sea válida
-      const operacionesValidas = ['PICKING', 'CROSSDOCKING', 'EXTRACCION', 'REPOSICION'];
+      const operacionesValidas = ['PICKING', 'CROSSDOCKING', 'EXTRACCION', 'REPOSICION', 'ALMACENAJE', 'RECEPCION'];
       if (!operacionesValidas.includes(operacion.toUpperCase())) {
         return reply.status(400).send({
           error: {
-            message: 'Operación no válida. Debe ser: PICKING, CROSSDOCKING, EXTRACCION o REPOSICION'
+            message: 'Operación no válida. Debe ser: PICKING, CROSSDOCKING, EXTRACCION, REPOSICION, ALMACENAJE o RECEPCION'
           }
         });
       }
@@ -48,6 +48,11 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
       // Convertir fechas al formato YYYY-MM-DD
       const from_date = fromDate.split('T')[0];
       const to_date = toDate.split('T')[0];
+      
+      // Para incluir el día final, agregamos 1 día a la fecha de fin
+      const to_date_inclusive = new Date(to_date);
+      to_date_inclusive.setDate(to_date_inclusive.getDate() + 1);
+      const to_date_final = to_date_inclusive.toISOString().split('T')[0];
       
       // Crear cache key
       const cacheKey = `productivity_${operacion}_${from_date}_${to_date}`;
@@ -60,7 +65,15 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
       }
       
       try {
+        // Usar pool de conexión estándar con timeout aumentado
         const connection = await getPool();
+        
+        // Configurar timeout en el pool para esta solicitud
+        const pool = connection as any;
+        if (pool.config) {
+          pool.config.requestTimeout = 60000; // 60 segundos
+          pool.config.connectionTimeout = 60000; // 60 segundos
+        }
         
         // 1) DAILY (serie diaria grupal)
         const dailyQuery = `
@@ -69,7 +82,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
             FROM bi.fact_operacion_evento
             WHERE operacion = @operacion
               AND fecha_operativa >= @from_date
-              AND fecha_operativa < @to_date
+              AND fecha_operativa < @to_date_final
           ),
           ops AS (
             SELECT
@@ -113,7 +126,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const dailyResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
+          .input('to_date_final', sql.Date, to_date_final)
           .query(dailyQuery);
 
         // 2) BY UOM (para tarjetas de CAJA / UNIDAD / PACK)
@@ -124,13 +137,13 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           FROM bi.fact_operacion_evento
           WHERE operacion = @operacion
             AND fecha_operativa >= @from_date
-            AND fecha_operativa < @to_date
+            AND fecha_operativa < @to_date_final
           GROUP BY UPPER(LTRIM(RTRIM(ISNULL(uom_text,'OTROS'))))
         `;
         const byUomResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
+          .input('to_date_final', sql.Date, to_date_final)
           .query(byUomQuery);
 
         // 3) KPIS (operarios + horas promedio por operario)
@@ -140,7 +153,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
             FROM bi.fact_operacion_evento
             WHERE operacion = @operacion
               AND fecha_operativa >= @from_date
-              AND fecha_operativa < @to_date
+              AND fecha_operativa < @to_date_final
           ),
           ops AS (
             SELECT
@@ -174,21 +187,21 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const kpisResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
+          .input('to_date_final', sql.Date, to_date_final)
           .query(kpisQuery);
 
         // 4) PER OPERATOR (grilla)
         const perOperatorResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
+          .input('to_date_final', sql.Date, to_date_final)
           .query(`
             WITH e AS (
               SELECT *
               FROM bi.fact_operacion_evento
               WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
+                AND fecha_operativa < @to_date_final
             ),
             ops AS (
               SELECT
@@ -235,7 +248,8 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
               v.packs,
               ISNULL(t.segundos,0) / 3600.0 as horas,
               CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.movimientos * 3600.0 / t.segundos END as mov_x_h,
-              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos END as uni_x_h
+              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos END as uni_x_h,
+              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos ELSE 0 END as productividad_media
             FROM v_user v
             LEFT JOIN t_user t ON t.usuario_id = v.usuario_id
             ORDER BY uni_x_h DESC, mov_x_h DESC
@@ -245,14 +259,14 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const dailyPerOperatorResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
+          .input('to_date_final', sql.Date, to_date_final)
           .query(`
             WITH e AS (
               SELECT *
               FROM bi.fact_operacion_evento
               WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
+                AND fecha_operativa < @to_date_final
             ),
             ops AS (
               SELECT
@@ -301,7 +315,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
               FROM bi.fact_operacion_evento
               WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
+                AND fecha_operativa < @to_date_final
                 AND operario IS NOT NULL
             ) o ON o.usuario_id = d.usuario_id
             GROUP BY d.fecha_operativa, d.usuario_id, d.movimientos, d.unidades, t.segundos
@@ -312,14 +326,14 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const dailyDetailGridResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
-          .input('to_date', sql.Date, to_date)
+          .input('to_date_final', sql.Date, to_date_final)
           .query(`
             WITH e AS (
               SELECT *
               FROM bi.fact_operacion_evento
               WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
+                AND fecha_operativa < @to_date_final
             ),
             ops AS (
               SELECT
@@ -367,7 +381,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
               FROM bi.fact_operacion_evento
               WHERE operacion = @operacion
                 AND fecha_operativa >= @from_date
-                AND fecha_operativa < @to_date
+                AND fecha_operativa < @to_date_final
                 AND operario IS NOT NULL
             ) o ON o.usuario_id = d.usuario_id
             GROUP BY d.fecha_operativa, d.usuario_id, d.movimientos, d.unidades, t.segundos
@@ -395,13 +409,13 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const byUom = byUomResult.recordset;
         
         // Mapear a cards
-        let cajas = 0, unidades_uom = 0, packs = 0;
-        byUom.forEach((row: any) => {
-          const uom = (row.uom || '').toUpperCase();
-          console.log('Processing UOM:', uom, 'value:', row.unidades);
+        let cajas = 0, unidades_uom = 0, packs = 0, pallets = 0;
+        byUomResult.recordset.forEach((row: any) => {
+          const uom = row.uom;
           if (uom === 'CAJA') cajas = row.unidades;
           else if (uom === 'UNIDAD') unidades_uom = row.unidades;
           else if (uom === 'PACK') packs = row.unidades;
+          else if (uom === 'PALLET' || uom === 'PALLETS') pallets = row.unidades;
         });
 
         const kpisRow = kpisResult.recordset[0] as any;
@@ -409,6 +423,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           cajas,
           unidades_uom,
           packs,
+          pallets,
           operarios: kpisRow?.operarios || 0,
           horas_promedio_por_operario: parseFloat(kpisRow?.horas_promedio_por_operario || 0)
         };
@@ -424,7 +439,8 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           unidades_uom: row.unidades_uom || 0,
           packs: row.packs || 0,
           uni_x_h: parseFloat(row.uni_x_h || 0),
-          mov_x_h: parseFloat(row.mov_x_h || 0)
+          mov_x_h: parseFloat(row.mov_x_h || 0),
+          productividad_media: parseFloat(row.productividad_media || 0)
         }));
 
         const dailyPerOperator = dailyPerOperatorResult.recordset.map((row: any) => ({
