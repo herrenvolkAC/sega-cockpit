@@ -25,21 +25,20 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
       // Convertir fechas del formato YYYYMMDD a YYYY-MM-DD
       const from_date = `${fechaInicio.substring(0, 4)}-${fechaInicio.substring(4, 6)}-${fechaInicio.substring(6, 8)}`;
       const to_date = `${fechaFin.substring(0, 4)}-${fechaFin.substring(4, 6)}-${fechaFin.substring(6, 8)}`;
-
+      
       console.log('=== RECEPCIONES REQUEST ===');
       console.log('Params:', { fechaInicio, fechaFin, proveedor, sku });
       console.log('Dates:', { from_date, to_date });
 
       // Obtener conexión a la base de datos
-      const { getPool } = await import('../db');
       const connection = await getPool();
 
-      // Query para obtener unidades recibidas por día
-      const recepcionesPorDiaQuery = `
+      // 1. ULs recepcionadas por día (pallets)
+      const ulsPorDiaQuery = `
         SELECT 
           CONVERT(varchar, fecha_operativa, 103) as fecha,
           FORMAT(fecha_operativa, 'dd/MM') as dia,
-          SUM(COALESCE(cantidad_unidades, 0)) as unidades
+          SUM(COALESCE(pallets, 0)) as uls
         FROM bi.fact_recepcion_sku
         WHERE fecha_operativa >= @from_date
           AND fecha_operativa <= @to_date
@@ -49,21 +48,159 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
         ORDER BY fecha_operativa
       `;
 
-      const result = await connection.request()
-        .input('from_date', sql.Date, from_date)
-        .input('to_date', sql.Date, to_date)
-        .input('proveedor', sql.NVarChar, proveedor ? `%${proveedor}%` : '')
-        .input('sku', sql.NVarChar, sku ? `%${sku}%` : '')
-        .query(recepcionesPorDiaQuery);
+      // 2. Cajas recepcionadas por día (cantidad_cajas)
+      const cajasPorDiaQuery = `
+        SELECT 
+          CONVERT(varchar, fecha_operativa, 103) as fecha,
+          FORMAT(fecha_operativa, 'dd/MM') as dia,
+          SUM(COALESCE(cantidad_cajas, 0)) as cajas
+        FROM bi.fact_recepcion_sku
+        WHERE fecha_operativa >= @from_date
+          AND fecha_operativa <= @to_date
+          ${proveedor && proveedor.trim() ? "AND UPPER(LTRIM(RTRIM(proveedor))) LIKE UPPER(@proveedor)" : ""}
+          ${sku && sku.trim() ? "AND UPPER(LTRIM(RTRIM(sku))) LIKE UPPER(@sku)" : ""}
+        GROUP BY fecha_operativa, FORMAT(fecha_operativa, 'dd/MM'), CONVERT(varchar, fecha_operativa, 103)
+        ORDER BY fecha_operativa
+      `;
 
-      console.log('Query ejecutada, resultados:', result.recordset.length, 'filas');
+      // 3. Tiempo medio de recepción por día (inicio_dt → fin_dt en horas)
+      const tiempoRecepcionPorDiaQuery = `
+        SELECT 
+          CONVERT(varchar, fecha_operativa, 103) as fecha,
+          FORMAT(fecha_operativa, 'dd/MM') as dia,
+          AVG(DATEDIFF(minute, inicio_dt, fin_dt) / 60.0) as tiempo_promedio_horas
+        FROM bi.fact_recepcion_sku
+        WHERE fecha_operativa >= @from_date
+          AND fecha_operativa <= @to_date
+          AND inicio_dt IS NOT NULL 
+          AND fin_dt IS NOT NULL
+          ${proveedor && proveedor.trim() ? "AND UPPER(LTRIM(RTRIM(proveedor))) LIKE UPPER(@proveedor)" : ""}
+          ${sku && sku.trim() ? "AND UPPER(LTRIM(RTRIM(sku))) LIKE UPPER(@sku)" : ""}
+        GROUP BY fecha_operativa, FORMAT(fecha_operativa, 'dd/MM'), CONVERT(varchar, fecha_operativa, 103)
+        ORDER BY fecha_operativa
+      `;
+
+      // 4. Tiempo medio de estada de camión por día (camion_entrada_dt → camion_salida_dt en horas)
+      const tiempoCamionPorDiaQuery = `
+        SELECT 
+          CONVERT(varchar, fecha_operativa, 103) as fecha,
+          FORMAT(fecha_operativa, 'dd/MM') as dia,
+          AVG(DATEDIFF(minute, camion_entrada_dt, camion_salida_dt) / 60.0) as tiempo_promedio_horas
+        FROM bi.fact_recepcion_sku
+        WHERE fecha_operativa >= @from_date
+          AND fecha_operativa <= @to_date
+          AND camion_entrada_dt IS NOT NULL 
+          AND camion_salida_dt IS NOT NULL
+          ${proveedor && proveedor.trim() ? "AND UPPER(LTRIM(RTRIM(proveedor))) LIKE UPPER(@proveedor)" : ""}
+          ${sku && sku.trim() ? "AND UPPER(LTRIM(RTRIM(sku))) LIKE UPPER(@sku)" : ""}
+        GROUP BY fecha_operativa, FORMAT(fecha_operativa, 'dd/MM'), CONVERT(varchar, fecha_operativa, 103)
+        ORDER BY fecha_operativa
+      `;
+
+      // 5. Recepciones por sector (torta con SUM(pallets))
+      const recepcionesPorSeccionQuery = `
+        SELECT 
+          LTRIM(RTRIM(sector_desc)) as sector,
+          SUM(COALESCE(pallets, 0)) as uls
+        FROM bi.fact_recepcion_sku
+        WHERE fecha_operativa >= @from_date
+          AND fecha_operativa <= @to_date
+          ${proveedor && proveedor.trim() ? "AND UPPER(LTRIM(RTRIM(proveedor))) LIKE UPPER(@proveedor)" : ""}
+          ${sku && sku.trim() ? "AND UPPER(LTRIM(RTRIM(sku))) LIKE UPPER(@sku)" : ""}
+        GROUP BY LTRIM(RTRIM(sector_desc))
+        ORDER BY uls DESC
+      `;
+
+      // Ejecutar todas las queries en paralelo
+      const [ulsResult, cajasResult, tiempoRecepcionResult, tiempoCamionResult, seccionResult] = await Promise.all([
+        connection.request()
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .input('proveedor', sql.NVarChar, proveedor ? `%${proveedor}%` : '')
+          .input('sku', sql.NVarChar, sku ? `%${sku}%` : '')
+          .query(ulsPorDiaQuery),
+        
+        connection.request()
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .input('proveedor', sql.NVarChar, proveedor ? `%${proveedor}%` : '')
+          .input('sku', sql.NVarChar, sku ? `%${sku}%` : '')
+          .query(cajasPorDiaQuery),
+        
+        connection.request()
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .input('proveedor', sql.NVarChar, proveedor ? `%${proveedor}%` : '')
+          .input('sku', sql.NVarChar, sku ? `%${sku}%` : '')
+          .query(tiempoRecepcionPorDiaQuery),
+        
+        connection.request()
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .input('proveedor', sql.NVarChar, proveedor ? `%${proveedor}%` : '')
+          .input('sku', sql.NVarChar, sku ? `%${sku}%` : '')
+          .query(tiempoCamionPorDiaQuery),
+        
+        connection.request()
+          .input('from_date', sql.Date, from_date)
+          .input('to_date', sql.Date, to_date)
+          .input('proveedor', sql.NVarChar, proveedor ? `%${proveedor}%` : '')
+          .input('sku', sql.NVarChar, sku ? `%${sku}%` : '')
+          .query(recepcionesPorSeccionQuery)
+      ]);
+
+      console.log('Queries ejecutadas:', {
+        uls: ulsResult.recordset.length,
+        cajas: cajasResult.recordset.length,
+        tiempoRecepcion: tiempoRecepcionResult.recordset.length,
+        tiempoCamion: tiempoCamionResult.recordset.length,
+        seccion: seccionResult.recordset.length
+      });
 
       // Formatear datos para el frontend
-      const recepcionesPorDia = result.recordset.map((row: any) => ({
+      const ulsPorDia = ulsResult.recordset.map((row: any) => ({
         fecha: row.fecha,
         dia: row.dia,
-        unidades: parseFloat(row.unidades || 0)
+        uls: parseFloat(row.uls || 0)
       }));
+
+      const cajasPorDia = cajasResult.recordset.map((row: any) => ({
+        fecha: row.fecha,
+        dia: row.dia,
+        cajas: parseFloat(row.cajas || 0)
+      }));
+
+      const tiempoRecepcionPorDia = tiempoRecepcionResult.recordset.map((row: any) => ({
+        fecha: row.fecha,
+        dia: row.dia,
+        tiempo_promedio_horas: parseFloat(row.tiempo_promedio_horas || 0)
+      }));
+
+      const tiempoCamionPorDia = tiempoCamionResult.recordset.map((row: any) => ({
+        fecha: row.fecha,
+        dia: row.dia,
+        tiempo_promedio_horas: parseFloat(row.tiempo_promedio_horas || 0)
+      }));
+
+      const recepcionesPorSeccion = seccionResult.recordset.map((row: any) => ({
+        sector: row.sector || 'Sin Sector',
+        uls: parseFloat(row.uls || 0),
+        porcentaje: 0 // Se calculará después
+      }));
+
+      // Calcular porcentajes para el gráfico de torta
+      const totalUls = recepcionesPorSeccion.reduce((sum, item) => sum + item.uls, 0);
+      recepcionesPorSeccion.forEach(item => {
+        item.porcentaje = totalUls > 0 ? (item.uls / totalUls) * 100 : 0;
+      });
+
+      // Calcular totales para KPIs
+      const totalUlsPeriodo = ulsPorDia.reduce((sum, item) => sum + item.uls, 0);
+      const totalCajasPeriodo = cajasPorDia.reduce((sum, item) => sum + item.cajas, 0);
+      const totalDiasConRecepcion = ulsPorDia.length;
+      const tiempoPromedioRecepcion = tiempoRecepcionPorDia.length > 0 
+        ? tiempoRecepcionPorDia.reduce((sum, item) => sum + item.tiempo_promedio_horas, 0) / tiempoRecepcionPorDia.length 
+        : 0;
 
       const response = {
         databaseName: 'MACROMERCADO',
@@ -73,19 +210,29 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
           proveedor: proveedor || 'Todos',
           sku: sku || 'Todos'
         },
-        recepcionesPorDia,
-        totalUnidades: recepcionesPorDia.reduce((sum, item) => sum + item.unidades, 0),
-        totalDias: recepcionesPorDia.length,
-        promedioDiario: recepcionesPorDia.length > 0 
-          ? recepcionesPorDia.reduce((sum, item) => sum + item.unidades, 0) / recepcionesPorDia.length 
-          : 0,
+        // Datos para gráficos
+        ulsPorDia,
+        cajasPorDia,
+        tiempoRecepcionPorDia,
+        tiempoCamionPorDia,
+        recepcionesPorSeccion,
+        // KPIs
+        kpis: {
+          totalUls: totalUlsPeriodo,
+          totalCajas: totalCajasPeriodo,
+          totalDias: totalDiasConRecepcion,
+          tiempoPromedioRecepcion: tiempoPromedioRecepcion,
+          totalSecciones: recepcionesPorSeccion.length
+        },
         generatedAt: new Date().toISOString()
       };
 
       console.log('Response prepared:', {
-        totalUnidades: response.totalUnidades,
-        totalDias: response.totalDias,
-        promedioDiario: response.promedioDiario
+        totalUls: response.kpis.totalUls,
+        totalCajas: response.kpis.totalCajas,
+        totalDias: response.kpis.totalDias,
+        tiempoPromedio: response.kpis.tiempoPromedioRecepcion,
+        totalSecciones: response.kpis.totalSecciones
       });
 
       return reply.send(response);

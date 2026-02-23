@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // Tipos para los datos de recepciones
 type RecepcionesData = {
@@ -12,14 +12,40 @@ type RecepcionesData = {
     proveedor: string;
     sku: string;
   };
-  recepcionesPorDia: Array<{
+  // Datos para gráficos
+  ulsPorDia: Array<{
     fecha: string;
     dia: string;
-    unidades: number;
+    uls: number;
   }>;
-  totalUnidades: number;
-  totalDias: number;
-  promedioDiario: number;
+  cajasPorDia: Array<{
+    fecha: string;
+    dia: string;
+    cajas: number;
+  }>;
+  tiempoRecepcionPorDia: Array<{
+    fecha: string;
+    dia: string;
+    tiempo_promedio_horas: number;
+  }>;
+  tiempoCamionPorDia: Array<{
+    fecha: string;
+    dia: string;
+    tiempo_promedio_horas: number;
+  }>;
+  recepcionesPorSeccion: Array<{
+    sector: string;
+    uls: number;
+    porcentaje: number;
+  }>;
+  // KPIs
+  kpis: {
+    totalUls: number;
+    totalCajas: number;
+    totalDias: number;
+    tiempoPromedioRecepcion: number;
+    totalSecciones: number;
+  };
   generatedAt: string;
 };
 
@@ -104,33 +130,33 @@ export default function RecepcionesPage() {
     
     return [
       {
-        title: "Total Unidades",
-        value: formatNumber(data.totalUnidades),
-        icon: "📦",
+        title: "Total ULs",
+        value: formatNumber(data.kpis.totalUls),
+        icon: "🏗️",
         color: "blue" as const
       },
       {
-        title: "Días con Recepción",
-        value: formatNumber(data.totalDias),
-        icon: "📅",
+        title: "Total Cajas",
+        value: formatNumber(data.kpis.totalCajas),
+        icon: "�",
         color: "green" as const
       },
       {
-        title: "Promedio Diario",
-        value: formatNumber(Math.round(data.promedioDiario)),
-        icon: "📊",
+        title: "Días con Recepción",
+        value: formatNumber(data.kpis.totalDias),
+        icon: "�",
         color: "orange" as const
       },
       {
-        title: "Proveedor Filtro",
-        value: data.filtros.proveedor,
-        icon: "🏢",
+        title: "Tiempo Promedio",
+        value: `${data.kpis.tiempoPromedioRecepcion.toFixed(1)}h`,
+        icon: "⏱️",
         color: "purple" as const
       },
       {
-        title: "SKU Filtro",
-        value: data.filtros.sku,
-        icon: "🏷️",
+        title: "Secciones",
+        value: formatNumber(data.kpis.totalSecciones),
+        icon: "�",
         color: "red" as const
       }
     ];
@@ -174,7 +200,7 @@ export default function RecepcionesPage() {
             </div>
             <div className="text-right">
               <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                {data.totalUnidades.toLocaleString('es-AR')} unidades
+                {data.kpis.totalUls.toLocaleString('es-AR')} ULs
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400">
                 en el rango seleccionado
@@ -263,7 +289,7 @@ export default function RecepcionesPage() {
       </div>
       
       {/* Empty State */}
-      {data && data.totalDias === 0 && (
+      {data && data.kpis.totalDias === 0 && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-8 mb-8 text-center">
           <div className="text-6xl mb-4">📊</div>
           <h3 className="text-xl font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
@@ -316,7 +342,7 @@ export default function RecepcionesPage() {
       )}
       
       {/* KPI Cards */}
-      {data && data.totalDias > 0 && (
+      {data && data.kpis.totalDias > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           {kpiCards.map((kpi: any, index: number) => (
             <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
@@ -332,50 +358,166 @@ export default function RecepcionesPage() {
         </div>
       )}
 
-      {/* Line Chart - Unidades Recibidas por Día */}
-      {data && data.totalDias > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            Unidades Recibidas por Día
-          </h2>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={data.recepcionesPorDia}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="dia" 
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis 
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => formatNumber(Number(value))}
-              />
-              <Tooltip 
-                formatter={(value: any, name: any) => [
-                  formatNumber(Number(value)), 
-                  'Unidades Recibidas'
-                ]}
-                contentStyle={{ 
-                  backgroundColor: '#1f2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '6px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                }}
-                labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
-                itemStyle={{ color: '#f3f4f6' }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="unidades" 
-                stroke="#3b82f6" 
-                strokeWidth={3}
-                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6 }}
-                name="Unidades Recibidas"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {/* Charts - 5 Reportes */}
+      {data && data.kpis.totalDias > 0 && (
+        <>
+          {/* Grid 2x2 para los 4 gráficos de líneas */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            
+            {/* 1. ULs Recepcionadas por Día */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                🏗️ ULs Recepcionadas por Día
+              </h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data.ulsPorDia}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatNumber(Number(value))} />
+                  <Tooltip 
+                    formatter={(value: any) => [formatNumber(Number(value)), 'ULs']}
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px' }}
+                    labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#f3f4f6' }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="uls" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    dot={{ fill: '#3b82f6', strokeWidth: 1, r: 3 }}
+                    activeDot={{ r: 5 }}
+                    name="ULs Recepcionadas"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* 2. Cajas Recepcionadas por Día */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                📦 Cajas Recepcionadas por Día
+              </h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data.cajasPorDia}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatNumber(Number(value))} />
+                  <Tooltip 
+                    formatter={(value: any) => [formatNumber(Number(value)), 'Cajas']}
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px' }}
+                    labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#f3f4f6' }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="cajas" 
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    dot={{ fill: '#10b981', strokeWidth: 1, r: 3 }}
+                    activeDot={{ r: 5 }}
+                    name="Cajas Recepcionadas"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* 3. Tiempo Medio de Recepción por Día */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                ⏱️ Tiempo Medio de Recepción (Horas)
+              </h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data.tiempoRecepcionPorDia}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `${value.toFixed(1)}h`} />
+                  <Tooltip 
+                    formatter={(value: any) => [`${Number(value).toFixed(1)}h`, 'Tiempo Promedio']}
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px' }}
+                    labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#f3f4f6' }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="tiempo_promedio_horas" 
+                    stroke="#f59e0b" 
+                    strokeWidth={2}
+                    dot={{ fill: '#f59e0b', strokeWidth: 1, r: 3 }}
+                    activeDot={{ r: 5 }}
+                    name="Tiempo Promedio (h)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* 4. Tiempo Medio de Estada de Camión por Día */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                🚛 Tiempo Medio de Estada de Camión (Horas)
+              </h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data.tiempoCamionPorDia}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `${value.toFixed(1)}h`} />
+                  <Tooltip 
+                    formatter={(value: any) => [`${Number(value).toFixed(1)}h`, 'Tiempo Promedio Camión']}
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px' }}
+                    labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#f3f4f6' }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="tiempo_promedio_horas" 
+                    stroke="#8b5cf6" 
+                    strokeWidth={2}
+                    dot={{ fill: '#8b5cf6', strokeWidth: 1, r: 3 }}
+                    activeDot={{ r: 5 }}
+                    name="Tiempo Promedio Camión (h)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+          </div>
+
+          {/* 5. Recepciones por Sector (Torta) - Ancho completo */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              🥧 Recepciones por Sector (Participación de ULs)
+            </h2>
+            <ResponsiveContainer width="100%" height={400}>
+              <PieChart>
+                <Pie
+                  data={data.recepcionesPorSeccion}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ sector, porcentaje }: any) => `${sector}: ${porcentaje.toFixed(1)}%`}
+                  outerRadius={120}
+                  fill="#8884d8"
+                  dataKey="uls"
+                >
+                  {data.recepcionesPorSeccion.map((entry, index) => {
+                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
+                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                  })}
+                </Pie>
+                <Tooltip 
+                  formatter={(value: any, name: any) => [formatNumber(Number(value)), 'ULs']}
+                  contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px' }}
+                  labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#f3f4f6' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </>
       )}
     </main>
   );

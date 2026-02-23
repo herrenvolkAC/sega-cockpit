@@ -233,4 +233,161 @@ export const fulfillmentRoute = async (app: FastifyInstance): Promise<void> => {
       }
     }
   );
+
+  // Nuevo endpoint para benchmark histórico
+  app.get(
+    "/fulfillment/benchmark",
+    async (
+      request: FastifyRequest<{ Querystring: FulfillmentQuerystring }>,
+      reply: FastifyReply
+    ) => {
+      const startedAt = Date.now();
+      const { fechaInicio, fechaFin, sku } = request.query;
+
+      try {
+        const pool = await getPool();
+        const databaseName = extractDatabaseName(config.mssqlConnectionString);
+
+        // Query para datos mensuales consolidados (últimos 10 meses)
+        // Corregida para calcular correctamente por mes con variabilidad real
+        const monthlyQuery = `
+          WITH monthly AS (
+            SELECT
+              month_start = DATEFROMPARTS(
+                CAST(SUBSTRING(CAST(date_key AS VARCHAR), 1, 4) AS INT),
+                CAST(SUBSTRING(CAST(date_key AS VARCHAR), 5, 2) AS INT),
+                1
+              ),
+              solicitado_units = SUM(qty_solicitada),
+              entregado_units  = SUM(qty_solicitada - shortage_qty)
+            FROM bi.fact_fulfillment_line_day
+            WHERE date_key >= FORMAT(DATEADD(MONTH, -9, GETDATE()), 'yyyyMMdd')
+              AND date_key < FORMAT(DATEADD(MONTH, 1, GETDATE()), 'yyyyMMdd')
+              ${sku ? `AND sku = @sku` : ''}
+            GROUP BY DATEFROMPARTS(
+              CAST(SUBSTRING(CAST(date_key AS VARCHAR), 1, 4) AS INT),
+              CAST(SUBSTRING(CAST(date_key AS VARCHAR), 5, 2) AS INT),
+              1
+            )
+          )
+          SELECT TOP 10
+            YEAR(month_start) as anio,
+            MONTH(month_start) as mes,
+            FORMAT(month_start, 'MMM-yy', 'es-AR') as mesAnio,
+            solicitado_units as solicitado,
+            entregado_units as entregado,
+            fill_rate = CASE 
+              WHEN solicitado_units > 0 
+              THEN (entregado_units * 1.0 / solicitado_units) * 100 
+              ELSE 0 
+            END
+          FROM monthly
+          ORDER BY month_start ASC
+        `;
+
+        console.log('=== MONTHLY QUERY DEBUG ===');
+        console.log('Query:', monthlyQuery);
+        console.log('SKU filter:', sku || 'none');
+
+        const monthlyResult = await pool
+          .request()
+          .input("sku", sku || null)
+          .query(monthlyQuery);
+
+        console.log('=== MONTHLY RESULT DEBUG ===');
+        console.log('Raw result:', monthlyResult.recordset);
+
+        // Calcular promedio histórico y mejor mes
+        const monthlyArray = monthlyResult.recordset as any[];
+        const nivelesServicio = monthlyArray.map((m: any) => m.fill_rate || 0);
+        const promedioHistorico = nivelesServicio.reduce((sum: number, nivel: number) => sum + nivel, 0) / nivelesServicio.length;
+        const mejorMes = Math.max(...nivelesServicio);
+        const peorMes = Math.min(...nivelesServicio);
+
+        // Obtener nivel actual del período seleccionado
+        let nivelActual = 0;
+        if (fechaInicio && fechaFin) {
+          const fechaInicioKey = convertToDateKey(fechaInicio);
+          const fechaFinKey = convertToDateKey(fechaFin);
+
+          const currentQuery = `
+            SELECT 
+              SUM(qty_solicitada) as qty_solicitada,
+              SUM(shortage_qty) as faltantes
+            FROM bi.fact_fulfillment_line_day
+            WHERE date_key BETWEEN @fechaInicio AND @fechaFin
+              ${sku ? `AND sku = @sku` : ''}
+          `;
+
+          const currentResult = await pool
+            .request()
+            .input("fechaInicio", fechaInicioKey)
+            .input("fechaFin", fechaFinKey)
+            .input("sku", sku || null)
+            .query(currentQuery);
+
+          const currentArray = currentResult.recordset as any[];
+          const totalSolicitado = currentArray[0]?.qty_solicitada || 0;
+          const totalFaltantes = currentArray[0]?.faltantes || 0;
+          
+          nivelActual = totalSolicitado > 0 
+            ? ((totalSolicitado - totalFaltantes) / totalSolicitado) * 100 
+            : 0;
+        }
+
+        // Calcular brechas
+        const brechaVsPromedio = nivelActual - promedioHistorico;
+        const brechaVsMejor = nivelActual - mejorMes;
+
+        // Formatear datos mensuales para el gráfico
+        const datosMensuales = monthlyArray.map((m: any) => ({
+          anio: m.anio,
+          mes: m.mes,
+          mesAnio: m.mesAnio,
+          solicitado: m.solicitado,
+          entregado: m.entregado,
+          nivelServicio: m.fill_rate
+        }));
+
+        const response = {
+          databaseName,
+          datosMensuales,
+          promedioHistorico,
+          mejorMes,
+          peorMes,
+          nivelActual,
+          brechaVsPromedio,
+          brechaVsMejor,
+          generatedAt: new Date().toISOString()
+        };
+
+        console.log('=== BENCHMARK RESPONSE DEBUG ===');
+        console.log('Monthly data:', datosMensuales);
+        console.log('Promedio histórico:', promedioHistorico);
+        console.log('Mejor mes:', mejorMes);
+        console.log('Peor mes:', peorMes);
+        console.log('Nivel actual:', nivelActual);
+        console.log('Brecha vs promedio:', brechaVsPromedio);
+        console.log('Brecha vs mejor:', brechaVsMejor);
+
+        return response;
+      } catch (error) {
+        console.error({
+          endpoint: "/fulfillment/benchmark",
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          durationMs: Date.now() - startedAt,
+          fechaInicio,
+          fechaFin,
+          sku,
+        });
+
+        const errorRes = errorResponse(
+          "DATABASE_ERROR",
+          "Error al obtener datos de benchmark histórico"
+        );
+        return reply.status(500).send(errorRes);
+      }
+    }
+  );
 };
