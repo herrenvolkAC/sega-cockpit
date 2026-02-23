@@ -4,6 +4,7 @@ import { MemoryCache } from "../cache";
 import { config } from "../config";
 import { query, getPool } from "../db";
 import { ErrorResponse } from "../types";
+import { calculateBenchmark, calculateValuePercentile, classifyPercentile } from "../utils/stats";
 
 const cache = new MemoryCache<any>(config.cacheTtlSeconds);
 
@@ -146,7 +147,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           .input('to_date_final', sql.Date, to_date_final)
           .query(byUomQuery);
 
-        // 3) KPIS (operarios + horas promedio por operario)
+        // 3) KPIS (operarios + horas promedio por operario + métricas explícitas)
         const kpisQuery = `
           WITH e AS (
             SELECT *
@@ -175,14 +176,25 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
               SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) as segundos
             FROM ops
             GROUP BY fecha_operativa, usuario_id
+          ),
+          totals AS (
+            SELECT
+              SUM(segundos) as segundos_totales,
+              COUNT(DISTINCT usuario_id) as operarios
+            FROM t_user_day
           )
           SELECT
-              COUNT(DISTINCT usuario_id) as operarios,
+              t.operarios,
               CASE
-                WHEN COUNT(DISTINCT usuario_id) > 0
-                  THEN (SUM(segundos) / 3600.0) / COUNT(DISTINCT usuario_id)
-              END as horas_promedio_por_operario
-            FROM t_user_day
+                WHEN t.operarios > 0
+                  THEN (t.segundos_totales / 3600.0) / t.operarios
+              END as horas_promedio_por_operario,
+              t.segundos_totales,
+              t.segundos_totales / 3600.0 as horas_totales,
+              CASE WHEN t.segundos_totales > 0 
+                THEN (SELECT SUM(cantidad) FROM bi.fact_operacion_evento WHERE operacion = @operacion AND fecha_operativa >= @from_date AND fecha_operativa < @to_date_final) * 3600.0 / t.segundos_totales 
+              END as productividad_periodo_uh
+            FROM totals t
         `;
         const kpisResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
@@ -190,11 +202,12 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           .input('to_date_final', sql.Date, to_date_final)
           .query(kpisQuery);
 
-        // 4) PER OPERATOR (grilla)
+        // 4) PER OPERATOR (grilla con filtro de outliers)
         const perOperatorResult = await connection.request()
           .input('operacion', sql.NVarChar, operacion)
           .input('from_date', sql.Date, from_date)
           .input('to_date_final', sql.Date, to_date_final)
+          .input('min_seconds', sql.Int, 1800) // 30 minutos mínimo
           .query(`
             WITH e AS (
               SELECT *
@@ -225,6 +238,7 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
                 SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) as segundos
               FROM ops
               GROUP BY usuario_id, legajo, operario
+              HAVING SUM(DATEDIFF(SECOND, inicio_dt, fin_dt)) >= @min_seconds
             ),
             v_user AS (
               SELECT
@@ -249,7 +263,8 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
               ISNULL(t.segundos,0) / 3600.0 as horas,
               CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.movimientos * 3600.0 / t.segundos END as mov_x_h,
               CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos END as uni_x_h,
-              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos ELSE 0 END as productividad_media
+              CASE WHEN ISNULL(t.segundos,0) > 0 THEN v.unidades * 3600.0 / t.segundos ELSE 0 END as productividad_media,
+              CASE WHEN ISNULL(t.segundos,0) < @min_seconds THEN 1 ELSE 0 END as sample_low
             FROM v_user v
             LEFT JOIN t_user t ON t.usuario_id = v.usuario_id
             ORDER BY uni_x_h DESC, mov_x_h DESC
@@ -406,6 +421,10 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           mov_x_h: parseFloat(row.mov_x_h || 0)
         }));
 
+        // Calcular benchmark estadístico sobre productividad diaria
+        const dailyProductivityValues = daily.map(d => d.uni_x_h).filter(v => v > 0);
+        const benchmark = calculateBenchmark(dailyProductivityValues);
+
         const byUom = byUomResult.recordset;
         
         // Mapear a cards
@@ -425,7 +444,10 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           packs,
           pallets,
           operarios: kpisRow?.operarios || 0,
-          horas_promedio_por_operario: parseFloat(kpisRow?.horas_promedio_por_operario || 0)
+          horas_promedio_por_operario: parseFloat(kpisRow?.horas_promedio_por_operario || 0),
+          segundos_totales: kpisRow?.segundos_totales || 0,
+          horas_totales: parseFloat(kpisRow?.horas_totales || 0),
+          productividad_periodo_uh: parseFloat(kpisRow?.productividad_periodo_uh || 0)
         };
 
         const perOperator = perOperatorResult.recordset.map((row: any) => ({
@@ -440,8 +462,20 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           packs: row.packs || 0,
           uni_x_h: parseFloat(row.uni_x_h || 0),
           mov_x_h: parseFloat(row.mov_x_h || 0),
-          productividad_media: parseFloat(row.productividad_media || 0)
+          productividad_media: parseFloat(row.productividad_media || 0),
+          sample_low: row.sample_low || 0
         }));
+
+        // Calcular percentiles para cada operario
+        const operatorProductivityValues = perOperator.map(op => op.productividad_media).filter(v => v > 0);
+        const perOperatorWithPercentiles = perOperator.map(op => {
+          const percentile = calculateValuePercentile(op.productividad_media, operatorProductivityValues);
+          return {
+            ...op,
+            percentil: percentile || 0,
+            grupo_percentil: classifyPercentile(percentile || 0)
+          };
+        });
 
         const dailyPerOperator = dailyPerOperatorResult.recordset.map((row: any) => ({
           fecha_operativa: row.fecha_operativa,
@@ -467,7 +501,8 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         console.log('=== PROCESSED RESULTS ===');
         console.log('Daily processed:', daily);
         console.log('Cards processed:', cards);
-        console.log('PerOperator processed:', perOperator);
+        console.log('PerOperator processed:', perOperatorWithPercentiles);
+        console.log('Benchmark calculated:', benchmark);
         console.log('DailyPerOperator processed:', dailyPerOperator);
         console.log('DailyDetailGrid processed:', dailyDetailGrid);
 
@@ -478,9 +513,10 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           operacion: operacion,
           daily,
           cards,
-          perOperator,
+          perOperator: perOperatorWithPercentiles,
           dailyPerOperator,
-          dailyDetailGrid
+          dailyDetailGrid,
+          benchmark
         };
 
         // Cache response
