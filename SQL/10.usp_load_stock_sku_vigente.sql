@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE bi.usp_load_stock_sku_vigente
+ALTER PROCEDURE [bi].[usp_load_stock_sku_vigente]
     @days int = 30
 AS
 BEGIN
@@ -10,13 +10,12 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @snapshot_dt datetime2(0) = sysdatetime();
-    DECLARE @fecha_operativa date = CAST(@snapshot_dt AS date);
+    DECLARE @snapshot_dt     datetime2(0) = sysdatetime();
+    DECLARE @fecha_operativa date         = CAST(@snapshot_dt AS date);
 
     DECLARE @from_dt datetime2(0) = DATEADD(day, -@days, @snapshot_dt);
     DECLARE @to_dt   datetime2(0) = @snapshot_dt;
 
-    -- Foto vigente: reemplazo completo
     TRUNCATE TABLE bi.fact_stock_sku_vigente;
 
     ;WITH stock_estado AS
@@ -54,23 +53,28 @@ BEGIN
         FROM stock_estado
         GROUP BY articulo_id
     ),
+
+    /* ========= DPD (consumo promedio diario sobre días calendario) ========= */
     dpd_daily AS
     (
         SELECT
             b.ID_ARTICULO AS articulo_id,
-            fecha = TRY_CAST(am.FECHA_HORA as date),
+            fecha = CAST(x.dt AS date),
             consumo_base_dia = SUM(
                 CAST(b.NUM_UNIDADES_FORM AS decimal(18,4)) *
                 CAST(fm.CANT_FORM_BASE    AS decimal(18,4))
             )
         FROM dbo.AVISOS_MERCADERIA am
-        JOIN dbo.ART_CONT_MERCADER b ON am.id = b.ID_MERCADERIA
-        JOIN dbo.FORMATOS fm         ON b.ID_FORMATO = fm.ID
+        CROSS APPLY (SELECT dt = TRY_CONVERT(datetime2(0), am.FECHA_HORA, 120)) x
+        JOIN dbo.ART_CONT_MERCADER b
+          ON b.ID_MERCADERIA = am.ID     -- ✅ FK confirmada: ART_CONT_MERCADER.ID_MERCADERIA = AVISOS_MERCADERIA.ID
+        JOIN dbo.FORMATOS fm
+          ON b.ID_FORMATO = fm.ID
         WHERE am.TIPO_AV = 1
-          AND TRY_CONVERT(datetime2(0), am.FECHA_HORA, 120) >= @from_dt
-          AND TRY_CONVERT(datetime2(0), am.FECHA_HORA, 120) <  @to_dt
-          AND TRY_CAST(am.FECHA_HORA as date) IS NOT NULL
-        GROUP BY b.ID_ARTICULO, TRY_CAST(am.FECHA_HORA as date)
+          AND x.dt IS NOT NULL
+          AND x.dt >= @from_dt
+          AND x.dt <  @to_dt
+        GROUP BY b.ID_ARTICULO, CAST(x.dt AS date)
     ),
     dpd_articulo AS
     (
@@ -79,7 +83,22 @@ BEGIN
             dpd_base_30d = SUM(consumo_base_dia) / NULLIF(@days,0)
         FROM dpd_daily
         GROUP BY articulo_id
+    ),
+
+    /* ========= Último movimiento (según FECHA_HORA del aviso) ========= */
+    last_move AS
+    (
+        SELECT
+            acm.ID_ARTICULO AS articulo_id,
+            last_move_dt = MAX(x.dt)
+        FROM dbo.AVISOS_MERCADERIA am
+        CROSS APPLY (SELECT dt = TRY_CONVERT(datetime2(0), am.FECHA_HORA, 120)) x
+        JOIN dbo.ART_CONT_MERCADER acm
+          ON acm.ID_MERCADERIA = am.ID
+        WHERE x.dt IS NOT NULL
+        GROUP BY acm.ID_ARTICULO
     )
+
     INSERT INTO bi.fact_stock_sku_vigente
     (
         snapshot_dt,
@@ -105,13 +124,25 @@ BEGIN
         s.stock_disponible_base,
         s.stock_reservado_base,
         s.stock_bloqueado_base,
-        d.dpd_base_30d,
-        s.stock_disponible_base / NULLIF(d.dpd_base_30d, 0),
-        NULL   -- last_move pendiente
+
+        /* DPD: si no hubo consumo en ventana, queda 0 (más claro para reporting) */
+        dpd_base_30d = ISNULL(d.dpd_base_30d, 0),
+
+        /* Días de stock: NULL cuando DPD=0 para evitar “0 días” engañosos */
+        dias_stock_disponible = CASE
+            WHEN ISNULL(d.dpd_base_30d, 0) = 0 THEN NULL
+            ELSE s.stock_disponible_base / d.dpd_base_30d
+        END,
+
+        lm.last_move_dt
     FROM stock_articulo s
-    JOIN dbo.ARTICULOS a ON a.ID = s.articulo_id
-    LEFT JOIN dpd_articulo d ON d.articulo_id = s.articulo_id;
+    JOIN dbo.ARTICULOS a
+      ON a.ID = s.articulo_id
+    LEFT JOIN dpd_articulo d
+      ON d.articulo_id = s.articulo_id
+    LEFT JOIN last_move lm
+      ON lm.articulo_id = s.articulo_id;
 
     SELECT @@ROWCOUNT AS inserted_rows;
-END;
+END
 GO

@@ -2,7 +2,21 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ExpandableGrid from '@/components/dashboard/ExpandableGrid';
+import { DarkChartThemeProvider, darkChartConfig } from '@/components/dashboard/DarkChartTheme';
+import { KpiCardWithTooltip } from '@/components/dashboard/KpiCardWithTooltip';
+import { ChartReferenceLabel } from '@/components/dashboard/ChartReferenceLabel';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area } from "recharts";
+
+// CSS for animations only (chart styles moved to DarkChartTheme)
+const styles = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 200ms ease-out forwards;
+  }
+`;
 
 // Tipos de datos
 interface DailyData {
@@ -175,7 +189,10 @@ export default function ProductivityPage() {
   }
 
   return (
-    <main className="p-6">
+    <>
+      <DarkChartThemeProvider>
+        <style dangerouslySetInnerHTML={{ __html: styles }} />
+        <main className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
           Productividad - {operacion === 'PICKING' ? 'Picking' : operacion === 'CROSSDOCKING' ? 'Crossdocking' : operacion === 'EXTRACCION' ? 'Extracción' : operacion === 'REPOSICION' ? 'Reposición' : operacion === 'ALMACENAJE' ? 'Almacenaje' : 'Recepción'} - Macromercado
@@ -256,124 +273,83 @@ export default function ProductivityPage() {
       {/* KPI Cards - Primera fila (principales) */}
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-7 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Unidades Totales</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {data.cards.unidades_uom.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="text-2xl">📋</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Unidades Totales"
+            value={data.cards.unidades_uom.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            icon="📋"
+            tooltip="Suma total de unidades procesadas en el período. Incluye todas las unidades de medida registradas por el sistema RF."
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-7 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Horas registradas (RF)</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {data.cards.horas_totales.toLocaleString('es-AR', { maximumFractionDigits: 1 })}
-                </p>
-              </div>
-              <div className="text-2xl">⏱️</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Horas registradas (RF)"
+            value={data.cards.horas_totales.toLocaleString('es-AR', { maximumFractionDigits: 1 })}
+            icon="⏱️"
+            tooltip="Total de horas trabajadas registradas por el sistema RF (Radio Frequency). Se calcula sumando los segundos de cada operario y dividiendo por 3600."
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-7 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Productividad Promedio</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {data.cards.productividad_periodo_uh.toLocaleString('es-AR', { maximumFractionDigits: 1 })} U/H
-                </p>
-              </div>
-              <div className="text-2xl">📊</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Productividad Promedio"
+            value={`${data.cards.productividad_periodo_uh.toLocaleString('es-AR', { maximumFractionDigits: 1 })} U/H`}
+            icon="📊"
+            tooltip="Promedio de Unidades por Hora del período. Cálculo: Total Unidades ÷ Total Horas. Mide la eficiencia general de la operación."
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-7 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Operarios</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {data.cards.operarios.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="text-2xl">👥</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Operarios"
+            value={data.cards.operarios.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            icon="👥"
+            tooltip="Cantidad de operarios únicos que registraron actividad en el período. Se basa en los identificadores de usuario del sistema RF."
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-7 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total UoM (mixto)</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {(data.cards.cajas + data.cards.packs + data.cards.pallets).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="text-2xl">📦</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Total UoM (mixto)"
+            value={(data.cards.cajas + data.cards.packs + data.cards.pallets).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            icon="📦"
+            tooltip="Suma total de unidades de medida físicas: Cajas + Packs + Pallets. Representa el volumen total de mercancía procesada."
+          />
         </div>
       )}
 
       {/* KPI Cards - Segunda fila (secundarios) */}
       {data && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Cajas</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {data.cards.cajas.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="text-lg">📦</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Cajas"
+            value={data.cards.cajas.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            icon="📦"
+            tooltip="Total de cajas procesadas en el período. Corresponde a las unidades de medida tipo 'caja' registradas en el sistema."
+            size="small"
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Packs</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {data.cards.packs.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="text-lg">📦</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Packs"
+            value={data.cards.packs.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            icon="📦"
+            tooltip="Total de packs procesados en el período. Corresponde a las unidades de medida tipo 'pack' registradas en el sistema."
+            size="small"
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Pallets</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {data.cards.pallets.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="text-lg">🏗️</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Pallets"
+            value={data.cards.pallets.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            icon="🏗️"
+            tooltip="Total de pallets procesados en el período. Corresponde a las unidades de medida tipo 'pallet' registradas en el sistema."
+            size="small"
+          />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Horas registradas por operario (RF)</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {data.cards.horas_promedio_por_operario.toFixed(1)}h
-                </p>
-              </div>
-              <div className="text-lg">⏱️</div>
-            </div>
-          </div>
+          <KpiCardWithTooltip
+            title="Horas registradas por operario (RF)"
+            value={`${data.cards.horas_promedio_por_operario.toFixed(1)}h`}
+            icon="⏱️"
+            tooltip="Promedio de horas trabajadas por operario. Cálculo: Total Horas ÷ Número de Operarios. Permite comparar la carga de trabajo entre operarios."
+            size="small"
+          />
         </div>
       )}
 
       {/* Gráfico de Productividad Diaria Media */}
       {data && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8 relative">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Productividad Media Diaria
@@ -382,6 +358,19 @@ export default function ProductivityPage() {
               Unidades por hora (promedio del día)
             </p>
           </div>
+          
+          {/* Label de referencia - Promedio */}
+          {data.benchmark && (
+            <ChartReferenceLabel
+              value={data.benchmark.promedio}
+              label="Promedio"
+              unit="U/H"
+              lineColor="#ef4444"
+              lineStyle="dashed"
+              position="top-right"
+            />
+          )}
+          
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={data.daily}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.25} />
@@ -442,16 +431,17 @@ export default function ProductivityPage() {
               {/* Benchmark - solo si hay datos */}
               {data.benchmark && (
                 <>
-                  {/* Línea de promedio */}
+                  {/* Línea de promedio mejorada */}
                   <Line 
                     type="monotone" 
                     dataKey={() => data.benchmark!.promedio}
-                    stroke="#6b7280" 
-                    name="Promedio"
-                    strokeDasharray="5 5"
-                    strokeWidth={1.5}
+                    stroke="#ef4444" 
+                    name="Promedio Referencia"
+                    strokeDasharray="8 4"
+                    strokeWidth={3}
                     dot={false}
                     activeDot={false}
+                    opacity={0.8}
                   />
                   
                   {/* Área P25-P75 */}
@@ -540,11 +530,11 @@ export default function ProductivityPage() {
               }
               margin={{ top: 20, right: 30, left: 60, bottom: 80 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.25} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} />
               <XAxis 
                 type="category" 
                 dataKey="operarioDisplay" 
-                tick={{ fontSize: 9 }}
+                tick={{ fontSize: 9, fill: '#9ca3af' }}
                 height={80}
                 tickFormatter={(value) => value}
               />
@@ -557,26 +547,26 @@ export default function ProductivityPage() {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
                     return (
-                      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                      <div className="bg-gray-900 dark:bg-gray-800 p-3 border border-gray-600 dark:border-gray-700 rounded-lg shadow-lg">
+                        <p className="text-sm font-semibold text-gray-100 dark:text-gray-100 mb-2">
                           {data.operario}
                         </p>
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between gap-4">
-                            <span className="text-gray-600 dark:text-gray-400">Productividad:</span>
-                            <span className="font-medium text-gray-900 dark:text-gray-100">{data.uni_x_h.toFixed(1)} U/H</span>
+                            <span className="text-gray-400 dark:text-gray-500">Productividad:</span>
+                            <span className="font-medium text-blue-400 dark:text-blue-300">{data.uni_x_h.toFixed(1)} U/H</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span className="text-gray-600 dark:text-gray-400">Unidades:</span>
-                            <span className="font-medium text-blue-600 dark:text-blue-400">{data.unidades.toLocaleString('es-AR')}</span>
+                            <span className="text-gray-400 dark:text-gray-500">Unidades:</span>
+                            <span className="font-medium text-blue-400 dark:text-blue-300">{data.unidades.toLocaleString('es-AR')}</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span className="text-gray-600 dark:text-gray-400">Horas:</span>
-                            <span className="font-medium text-green-600 dark:text-green-400">{data.horas.toFixed(1)}h</span>
+                            <span className="text-gray-400 dark:text-gray-500">Horas:</span>
+                            <span className="font-medium text-green-400 dark:text-green-300">{data.horas.toFixed(1)}h</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span className="text-gray-600 dark:text-gray-400">Legajo:</span>
-                            <span className="font-medium text-gray-500 dark:text-gray-400">{data.legajo}</span>
+                            <span className="text-gray-400 dark:text-gray-500">Legajo:</span>
+                            <span className="font-medium text-gray-400 dark:text-gray-500">{data.legajo}</span>
                           </div>
                         </div>
                       </div>
@@ -584,12 +574,14 @@ export default function ProductivityPage() {
                   }
                   return null;
                 }}
+                {...darkChartConfig.tooltipCommonProps}
               />
               <Bar 
                 dataKey="uni_x_h" 
                 fill="#3b82f6" 
                 name="Productividad (U/H)"
                 radius={[4, 4, 0, 0]}
+                {...darkChartConfig.barCommonProps}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -739,5 +731,7 @@ export default function ProductivityPage() {
       )}
 
       </main>
+      </DarkChartThemeProvider>
+    </>
   );
 }

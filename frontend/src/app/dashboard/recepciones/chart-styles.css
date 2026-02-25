@@ -1,0 +1,17 @@
+/* Custom bar chart styles */
+.recharts-bar-rectangle {
+  transition: all 0.2s ease-in-out !important;
+}
+
+.recharts-bar-rectangle:hover {
+  filter: brightness(1.1) !important;
+  stroke: rgba(0, 0, 0, 0.3) !important;
+  stroke-width: 1px !important;
+}
+
+.recharts-bar-rectangle.recharts-active-bar {
+  filter: brightness(1.15) !important;
+  stroke: rgba(0, 0, 0, 0.5) !important;
+  stroke-width: 2px !important;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2) !important;
+}

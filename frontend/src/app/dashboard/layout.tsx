@@ -7,7 +7,8 @@ const navigation = [
   { name: "FullFillment", href: "/dashboard/fulfillment" },
   { name: "Productividad", href: "/dashboard/productivity" },
   { name: "Recepciones", href: "/dashboard/recepciones" },
-  { name: "Inventario", href: "/dashboard/inventory" },
+  { name: "Stock & Almacenaje", href: "/dashboard/stock-almacenaje" },
+  { name: "Inventario", href: "/dashboard/stock" },
   { name: "Ventas", href: "/dashboard/sales" },
   { name: "Calidad", href: "/dashboard/quality" },
 ];

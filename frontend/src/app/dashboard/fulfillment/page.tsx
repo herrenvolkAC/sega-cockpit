@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from "recharts";
 
-// CSS for animations
+// CSS for animations and custom chart styles
 const styles = `
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
@@ -11,6 +11,24 @@ const styles = `
   }
   .animate-fade-in {
     animation: fadeIn 200ms ease-out forwards;
+  }
+  
+  /* Custom bar chart styles */
+  .recharts-bar-rectangle {
+    transition: all 0.2s ease-in-out !important;
+  }
+  
+  .recharts-bar-rectangle:hover {
+    filter: brightness(1.1) !important;
+    stroke: rgba(0, 0, 0, 0.3) !important;
+    stroke-width: 1px !important;
+  }
+  
+  .recharts-bar-rectangle.recharts-active-bar {
+    filter: brightness(1.15) !important;
+    stroke: rgba(0, 0, 0, 0.5) !important;
+    stroke-width: 2px !important;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2) !important;
   }
 `;
 
@@ -274,7 +292,9 @@ export default function FulfillmentPage() {
   }
 
   return (
-    <main className="p-6">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: styles }} />
+      <main className="p-6">
       {/* Header Narrativo */}
       <header className="mb-8">
         <div className="flex justify-between items-start">
@@ -847,6 +867,9 @@ export default function FulfillmentPage() {
                 <Bar 
                   dataKey="shortage" 
                   fill="#b91c1c"
+                  fillOpacity={1}
+                  stroke="transparent"
+                  strokeWidth={0}
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -956,5 +979,6 @@ export default function FulfillmentPage() {
         </div>
       )}
     </main>
+    </>
   );
 }

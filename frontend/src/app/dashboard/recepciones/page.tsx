@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Area, BarChart } from "recharts";
+import { DarkChartThemeProvider, darkChartConfig } from '@/components/dashboard/DarkChartTheme';
 
 // Tipos para los datos de recepciones
 type BenchmarkStats = {
@@ -248,7 +249,8 @@ setData(result.data);
   }
 
   return (
-    <main className="p-6">
+    <DarkChartThemeProvider>
+      <main className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
           Recepciones - Macromercado
@@ -525,7 +527,10 @@ setData(result.data);
                   dataKey="uls" 
                   fill="#3b82f6" 
                   name="ULs"
-                  opacity={0.8}
+                  fillOpacity={1}
+                  stroke="transparent"
+                  strokeWidth={0}
+                  radius={[2, 2, 0, 0]}
                 />
                 <Line 
                   yAxisId="right"
@@ -966,6 +971,8 @@ setData(result.data);
                   dataKey="uls" 
                   fill="#3b82f6"
                   name="ULs"
+                  radius={[2, 2, 0, 0]}
+                  {...darkChartConfig.barCommonProps}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -973,5 +980,6 @@ setData(result.data);
         </>
       )}
     </main>
+    </DarkChartThemeProvider>
   );
 }

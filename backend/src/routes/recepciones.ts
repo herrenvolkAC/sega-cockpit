@@ -268,9 +268,9 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
 
       // Contar outliers para estadísticas
       const outliersCamionHigh = benchmarkCamion ? 
-        tiempoCamionValues.filter(v => v > benchmarkCamion.p90).length : 0;
+        tiempoCamionValues.filter((v: number) => v > benchmarkCamion.p90).length : 0;
       const outliersCamionLow = benchmarkCamion ? 
-        tiempoCamionValues.filter(v => v < benchmarkCamion.p10).length : 0;
+        tiempoCamionValues.filter((v: number) => v < benchmarkCamion.p10).length : 0;
 
       // Procesar KPIs ponderados del período
       const kpisPeriodoRaw = kpisPeriodoResult.recordset[0] || {};
