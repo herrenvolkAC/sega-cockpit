@@ -206,15 +206,15 @@ export default function ExpedicionesPage() {
     [fetchExpedicionesData]
   );
 
-  // Cargar datos iniciales (últimos 60 días por defecto)
-  useEffect(() => {
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-    const today = new Date();
-    
-    setFechaInicio(sixtyDaysAgo.toISOString().split('T')[0]);
-    setFechaFin(today.toISOString().split('T')[0]);
-  }, []);
+  // No cargar datos automáticamente - el usuario debe seleccionar fechas explícitamente
+  // useEffect(() => {
+  //   const sixtyDaysAgo = new Date();
+  //   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  //   const today = new Date();
+  //   
+  //   setFechaInicio(sixtyDaysAgo.toISOString().split('T')[0]);
+  //   setFechaFin(today.toISOString().split('T')[0]);
+  // }, []);
 
   // Cargar datos de benchmark cuando cambian las fechas
   useEffect(() => {
@@ -226,6 +226,18 @@ export default function ExpedicionesPage() {
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat("es-AR").format(num);
   };
+
+  // Calcular total para porcentajes del PieChart
+  const totalULs = useMemo(() => {
+    if (!data?.estadoULs) {
+      console.log('estadoULs is null or undefined');
+      return 0;
+    }
+    console.log('estadoULs data:', data.estadoULs);
+    const total = data.estadoULs.reduce((sum: number, item: any) => sum + item.value, 0);
+    console.log('Calculated totalULs:', total);
+    return total;
+  }, [data?.estadoULs]);
 
   const kpiCards = useMemo(() => {
     if (!data) return [];
@@ -562,9 +574,28 @@ export default function ExpedicionesPage() {
       )}
       
       {/* KPI Cards */}
-      {data && data.totalCamiones > 0 && (
+      {!data && !loading && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 border border-gray-200 dark:border-gray-700 text-center">
+            <div className="text-gray-500 dark:text-gray-400 mb-4">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+              Selecciona un rango de fechas
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              Para ver los datos de expediciones, selecciona las fechas de inicio y fin, luego haz clic en "Filtrar".
+            </p>
+            <div className="text-xs text-gray-400 dark:text-gray-500">
+              También puedes usar "Simular datos" para ver una vista previa del dashboard.
+            </div>
+          </div>
+        )}
+
+        {data && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {kpiCards.map((kpi: any, index: number) => (
+          {kpiCards.map((kpi, index) => (
             <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-7 border border-gray-200 dark:border-gray-700 animate-fade-in relative group">
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="relative">
@@ -778,26 +809,76 @@ export default function ExpedicionesPage() {
               </div>
               <div className="mb-4">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Distribución de ULs por Estado
+                  Distribución de ULs por Estado (Debug)
                 </h2>
+                <div className="text-xs text-gray-500 mb-2">
+                  Total ULs: {totalULs} | Datos: {JSON.stringify(data?.estadoULs)}
+                </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={data.estadoULs}
+                    data={[
+                      { name: "Normales", value: 3420, color: "#10b981" },
+                      { name: "Sin Fin Prep", value: 180, color: "#f59e0b" },
+                      { name: "Sin Volumen", value: 95, color: "#fb923c" },
+                      { name: "Overfill", value: 45, color: "#ef4444" }
+                    ]}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => {
+                      console.log('PieChart label - name:', name, 'percent:', percent);
+                      const safePercent = Math.abs(percent || 0);
+                      return `${name}: ${(safePercent * 100).toFixed(1)}%`;
+                    }}
                     outerRadius={80}
-                    fill="#8884d8"
                     dataKey="value"
                   >
-                    {data.estadoULs.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
+                    {[
+                      { name: "Normales", value: 3420, color: "#10b981" },
+                      { name: "Sin Fin Prep", value: 180, color: "#f59e0b" },
+                      { name: "Sin Volumen", value: 95, color: "#fb923c" },
+                      { name: "Overfill", value: 45, color: "#ef4444" }
+                    ].map((entry: any, index: number) => {
+                      console.log('PieChart Cell - index:', index, 'entry:', entry);
+                      return (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      );
+                    })}
                   </Pie>
-                  <Tooltip formatter={(value: number | undefined) => formatNumber(value || 0)} />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const item = payload[0].payload;
+                        const total = 3740; // Hardcoded para debug
+                        const percentage = ((item.value / total) * 100).toFixed(1);
+                        console.log('Tooltip - item:', item, 'percentage:', percentage);
+                        return (
+                          <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: item.color }}
+                              ></div>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.name}</p>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600 dark:text-gray-400">Cantidad:</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">{formatNumber(item.value)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600 dark:text-gray-400">Porcentaje:</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">{percentage}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -822,38 +903,22 @@ export default function ExpedicionesPage() {
                 </h2>
               </div>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.topMatriculas}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.3} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatNumber(Number(value))} />
+                <BarChart data={data.topMatriculas} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} />
+                  <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={(value) => formatNumber(Number(value))} />
                   <Tooltip 
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{label}</p>
-                            <div className="space-y-1 text-sm">
-                              <div className="flex justify-between gap-4">
-                                <span className="text-gray-600 dark:text-gray-400">ULs Total:</span>
-                                <span className="font-medium text-blue-600 dark:text-blue-400">{formatNumber(data.uls_total)}</span>
-                              </div>
-                              <div className="flex justify-between gap-4">
-                                <span className="text-gray-600 dark:text-gray-400">Duración Avg:</span>
-                                <span className="font-medium text-green-600 dark:text-green-400">{data.duracion_promedio.toFixed(0)} min</span>
-                              </div>
-                              <div className="flex justify-between gap-4">
-                                <span className="text-gray-600 dark:text-gray-400">Viajes:</span>
-                                <span className="font-medium text-gray-900 dark:text-gray-100">{data.viajes}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
+                    formatter={(value: any) => [formatNumber(Number(value)), 'ULs']}
+                    contentStyle={{ 
+                      backgroundColor: '#1f2937', 
+                      border: '1px solid #374151', 
+                      borderRadius: '6px' 
                     }}
+                    labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#f3f4f6' }}
+                    cursor={false}
                   />
-                  <Bar dataKey="uls_total" fill="#3b82f6" />
+                  <Bar dataKey="uls_total" fill="#3b82f6" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

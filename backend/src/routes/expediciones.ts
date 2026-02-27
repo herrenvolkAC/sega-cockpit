@@ -119,7 +119,9 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
           .query(`SELECT AVG(duracion_carga_min) as duracion_promedio 
                    FROM bi.fact_carga_camion_dia WITH (NOLOCK)
                    WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}' 
-                     AND duracion_carga_min IS NOT NULL ${matriculaCondition}`);
+                     AND duracion_carga_min IS NOT NULL 
+                     AND duracion_carga_min > 0 
+                     AND duracion_carga_min <= 1440 ${matriculaCondition}`); // Máximo 24 horas (1440 min)
 
         const ocupacionPromedioResult = await connection.request()
           .query(`SELECT AVG(ocupacion_contenedores) as ocupacion_promedio 
@@ -136,7 +138,7 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
         const camionesPorDiaResult = await connection.request()
           .query(`SELECT FORMAT(fecha, 'dd/MM') as dia,
                           COUNT(*) as camiones,
-                          AVG(duracion_carga_min) as duracion_promedio,
+                          AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END) as duracion_promedio,
                           AVG(ocupacion_contenedores) as ocupacion_promedio,
                           SUM(cantidad_destinos) as total_destinos,
                           SUM(uls) as total_uls
@@ -168,23 +170,23 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
         // Top 10 matrículas por volumen
         const topMatriculasResult = await connection.request()
           .query(`SELECT TOP 10 matricula as name, SUM(uls) as uls_total, 
-                          AVG(duracion_carga_min) as duracion_promedio,
+                          AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END) as duracion_promedio,
                           COUNT(*) as viajes
                    FROM bi.fact_carga_camion_dia WITH (NOLOCK)
                    WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}' ${matriculaCondition}
                    GROUP BY matricula
-                   ORDER BY SUM(uls) DESC`);
+                   ORDER BY uls_total DESC`);
 
         // Matrículas más usadas en el período
         const matriculasMasUsadasResult = await connection.request()
           .query(`SELECT TOP 5 matricula as name, COUNT(*) as viajes, 
-                          SUM(uls) as uls_total, AVG(duracion_carga_min) as duracion_promedio,
+                          SUM(uls) as uls_total, AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END) as duracion_promedio,
                           AVG(ocupacion_contenedores) as ocupacion_promedio,
                           SUM(cantidad_destinos) as total_destinos
                    FROM bi.fact_carga_camion_dia WITH (NOLOCK)
                    WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}' ${matriculaCondition}
                    GROUP BY matricula
-                   ORDER BY COUNT(*) DESC`);
+                   ORDER BY viajes DESC`);
 
         // Estructurar respuesta
         const response = {
@@ -254,11 +256,11 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
 
         // Query para datos mensuales consolidados (últimos 10 meses)
         const monthlyQuery = `
-          WITH monthly AS (
+          WITH monthly_data AS (
             SELECT
               month_start = DATEFROMPARTS(YEAR(fecha), MONTH(fecha), 1),
               total_camiones = COUNT(*),
-              duracion_promedio = AVG(duracion_carga_min),
+              duracion_promedio = AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END),
               ocupacion_promedio = AVG(ocupacion_contenedores),
               total_destinos = SUM(cantidad_destinos),
               total_uls = SUM(uls)
@@ -312,7 +314,7 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
 
           const currentQuery = `
             SELECT 
-              AVG(duracion_carga_min) as duracion_promedio,
+              AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END) as duracion_promedio,
               AVG(ocupacion_contenedores) as ocupacion_promedio
             FROM bi.fact_carga_camion_dia WITH (NOLOCK)
             WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'

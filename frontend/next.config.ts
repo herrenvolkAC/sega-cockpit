@@ -39,6 +39,10 @@ const nextConfig: NextConfig = {
         source: '/stock-almacenaje/:path*',
         destination: 'http://localhost:3001/stock-almacenaje/:path*',
       },
+      {
+        source: '/expediciones/:path*',
+        destination: 'http://localhost:3001/expediciones/:path*',
+      },
     ]
   },
 };
