@@ -148,9 +148,26 @@ const Top5StockChart = ({ data }: { data: any[] }) => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-      <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">
-        Concentración de Stock – Top 5
-      </h2>
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Concentración de Stock – Top 5
+        </h2>
+        <div className="group relative inline-block">
+          <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
+            <div className="text-xs leading-relaxed">
+              Muestra los 5 SKUs con mayor concentración de stock total y disponible. 
+              Permite identificar qué productos representan la mayor parte del capital inmovilizado en inventario.
+            </div>
+            <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
+          </div>
+        </div>
+      </div>
       <ResponsiveContainer width="100%" height={320}>
         <BarChart 
           data={data}
@@ -239,9 +256,28 @@ const AlertBarList = ({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 h-full">
-      <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-        {title}
-      </h2>
+      <div className="flex items-center gap-2 mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {title}
+        </h2>
+        <div className="group relative inline-block">
+          <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
+            <div className="text-xs leading-relaxed">
+              {title.includes("Riesgo de Quiebre") 
+                ? "Muestra los SKUs con menor cobertura de stock en días. Identifica los productos en riesgo crítico de quedarse sin inventario basado en el consumo diario promedio."
+                : "Muestra los SKUs con más días sin movimiento de stock. Identifica productos inmovilizados que podrían representar capital ocioso y obsolescencia."
+              }
+            </div>
+            <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
+          </div>
+        </div>
+      </div>
       <div className="space-y-3 max-h-64 overflow-y-auto">
         {data.map((item, index) => (
           <div key={index} className="flex items-center space-x-3">
@@ -490,9 +526,26 @@ export default function StockPage() {
           {/* BLOQUE 2 - DISTRIBUCIÓN DE COBERTURA */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Distribución de Cobertura por Rango
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Distribución de Cobertura por Rango
+                </h2>
+                <div className="group relative inline-block">
+                  <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
+                    <div className="text-xs leading-relaxed">
+                      Muestra cómo se distribuyen los SKUs según su cobertura en días. 
+                      Permite visualizar la concentración de productos en cada rango de cobertura (crítico, bajo, saludable, alto, sobrestock).
+                    </div>
+                    <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
+                  </div>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -552,9 +605,26 @@ export default function StockPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* BLOQUE 3 - ESTADO DE STOCK */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                Estado de Stock
-              </h2>
+              <div className="flex items-center gap-2 mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Estado de Stock
+                </h2>
+                <div className="group relative inline-block">
+                  <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
+                    <div className="text-xs leading-relaxed">
+                      Muestra la distribución de SKUs por estado de stock: Crítico (sin stock), Bajo (menos de 7 días), 
+                      Saludable (7-120 días), Alto (120-180 días) y Sobrestock (más de 180 días).
+                    </div>
+                    <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
+                  </div>
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie

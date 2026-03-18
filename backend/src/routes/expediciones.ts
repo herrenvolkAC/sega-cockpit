@@ -134,18 +134,159 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
                    FROM bi.fact_carga_camion_dia WITH (NOLOCK)
                    WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}' ${matriculaCondition}`);
 
+        // KPIs de Coordinación Operativa - Tiempo Muerto
+        const tiempoMuertoPromedioResult = await connection.request()
+          .query(`SELECT AVG(DATEDIFF(minute, fin_preparacion, inicio_carga)) as tiempo_muerto_promedio
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+                     AND fin_preparacion IS NOT NULL
+                     AND inicio_carga IS NOT NULL
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}`); // Máximo 12 horas
+
+        const tiempoMuertoP95Result = await connection.request()
+          .query(`WITH ranked_data AS (
+            SELECT 
+              DATEDIFF(minute, fin_preparacion, inicio_carga) as tiempo_muerto
+            FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+            WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+              AND fin_preparacion IS NOT NULL
+              AND inicio_carga IS NOT NULL
+              AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+              AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}
+          )
+          SELECT TOP 5 PERCENT tiempo_muerto as tiempo_muerto_p95
+          FROM ranked_data 
+          ORDER BY tiempo_muerto DESC`);
+
+        // Percentiles para el scatter plot (caps visuales)
+        const scatterCapsResult = await connection.request()
+          .query(`WITH duracion_data AS (
+            SELECT duracion_carga_min
+            FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+            WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+              AND duracion_carga_min IS NOT NULL
+              AND duracion_carga_min > 0
+              AND duracion_carga_min <= 1440 ${matriculaCondition}
+          ),
+          tiempo_muerto_data AS (
+            SELECT DATEDIFF(minute, fin_preparacion, inicio_carga) as tiempo_muerto
+            FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+            WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+              AND fin_preparacion IS NOT NULL
+              AND inicio_carga IS NOT NULL
+              AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+              AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}
+          )
+          SELECT 
+            (SELECT MAX(duracion) FROM (SELECT TOP 98 PERCENT duracion_carga_min as duracion FROM duracion_data ORDER BY duracion_carga_min) as t) as duracion_p98,
+            (SELECT MAX(tiempo_muerto) FROM (SELECT TOP 95 PERCENT tiempo_muerto FROM tiempo_muerto_data ORDER BY tiempo_muerto) as t) as tiempo_muerto_p95`);
+
+        const camionesEspera15Result = await connection.request()
+          .query(`SELECT COUNT(*) as camiones_espera_15
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+                     AND fin_preparacion IS NOT NULL
+                     AND inicio_carga IS NOT NULL
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) > 15
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}`);
+
+        const camionesEspera30Result = await connection.request()
+          .query(`SELECT COUNT(*) as camiones_espera_30
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+                     AND fin_preparacion IS NOT NULL
+                     AND inicio_carga IS NOT NULL
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) > 30
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}`);
+
+        const tiempoMuertoTotalResult = await connection.request()
+          .query(`SELECT SUM(DATEDIFF(minute, fin_preparacion, inicio_carga)) as tiempo_muerto_total
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+                     AND fin_preparacion IS NOT NULL
+                     AND inicio_carga IS NOT NULL
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}`);
+
+        const duracionTotalResult = await connection.request()
+          .query(`SELECT SUM(duracion_carga_min) as duracion_total
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+                     AND duracion_carga_min IS NOT NULL
+                     AND duracion_carga_min > 0 
+                     AND duracion_carga_min <= 1440 ${matriculaCondition}`);
+
+        const totalCamionesValidosResult = await connection.request()
+          .query(`SELECT COUNT(*) as total_camiones_validos
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
+                     AND fin_preparacion IS NOT NULL
+                     AND inicio_carga IS NOT NULL
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720 ${matriculaCondition}`);
+
         // Datos por día
         const camionesPorDiaResult = await connection.request()
           .query(`SELECT FORMAT(fecha, 'dd/MM') as dia,
                           COUNT(*) as camiones,
                           AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END) as duracion_promedio,
                           AVG(ocupacion_contenedores) as ocupacion_promedio,
+                          AVG(CASE WHEN fin_preparacion IS NOT NULL 
+                                   AND inicio_carga IS NOT NULL 
+                                   AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                                   AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720
+                              THEN DATEDIFF(minute, fin_preparacion, inicio_carga) 
+                              ELSE NULL END) as tiempo_muerto_promedio,
                           SUM(cantidad_destinos) as total_destinos,
                           SUM(uls) as total_uls
                    FROM bi.fact_carga_camion_dia WITH (NOLOCK)
                    WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}' ${matriculaCondition}
                    GROUP BY fecha
-                   ORDER BY fecha`);
+                   ORDER BY fecha ASC`);
+
+        // Datos individuales para scatter plot
+        const scatterDataResult = await connection.request()
+          .query(`SELECT TOP 1500
+                          matricula,
+                          FORMAT(fecha, 'dd/MM/yyyy') as fecha,
+                          duracion_carga_min as duracion,
+                          DATEDIFF(minute, fin_preparacion, inicio_carga) as tiempo_muerto,
+                          ocupacion_contenedores as ocupacion,
+                          cantidad_destinos,
+                          uls
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' 
+                     AND fecha <= '${fechaFinSQL}'
+                     AND inicio_carga IS NOT NULL
+                     AND fin_carga IS NOT NULL
+                     AND fin_preparacion IS NOT NULL
+                     AND duracion_carga_min > 0
+                     AND duracion_carga_min <= 1440
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720
+                     ${matricula ? `AND matricula LIKE '%${matricula}%'` : ''}
+                   ORDER BY fecha DESC`);
+
+        // Top 10 camiones con mayor tiempo muerto
+        const topTiempoMuertoResult = await connection.request()
+          .query(`SELECT TOP 10
+                          matricula,
+                          FORMAT(fecha, 'dd/MM/yyyy') as fecha,
+                          duracion_carga_min as duracion,
+                          DATEDIFF(minute, fin_preparacion, inicio_carga) as tiempo_muerto,
+                          ocupacion_contenedores as ocupacion,
+                          cantidad_destinos,
+                          uls
+                   FROM bi.fact_carga_camion_dia WITH (NOLOCK)
+                   WHERE fecha >= '${fechaInicioSQL}' 
+                     AND fecha <= '${fechaFinSQL}'
+                     AND fin_preparacion IS NOT NULL
+                     AND inicio_carga IS NOT NULL
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                     AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720
+                     ${matricula ? `AND matricula LIKE '%${matricula}%'` : ''}
+                   ORDER BY DATEDIFF(minute, fin_preparacion, inicio_carga) DESC`);
 
         // Distribución de ULs por estado
         const estadoULsResult = await connection.request()
@@ -198,7 +339,22 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
           duracionPromedio: (duracionPromedioResult.recordset[0] as any)?.duracion_promedio || 0,
           ocupacionPromedio: (ocupacionPromedioResult.recordset[0] as any)?.ocupacion_promedio || 0,
           totalDestinos: (totalDestinosResult.recordset[0] as any)?.total_destinos || 0,
+          // KPIs de Coordinación Operativa
+          tiempoMuertoPromedio: (tiempoMuertoPromedioResult.recordset[0] as any)?.tiempo_muerto_promedio || 0,
+          tiempoMuertoP95: (tiempoMuertoP95Result.recordset[0] as any)?.tiempo_muerto_p95 || 0,
+          camionesEspera15: (camionesEspera15Result.recordset[0] as any)?.camiones_espera_15 || 0,
+          camionesEspera30: (camionesEspera30Result.recordset[0] as any)?.camiones_espera_30 || 0,
+          tiempoMuertoTotal: (tiempoMuertoTotalResult.recordset[0] as any)?.tiempo_muerto_total || 0,
+          duracionTotal: (duracionTotalResult.recordset[0] as any)?.duracion_total || 0,
+          totalCamionesValidos: (totalCamionesValidosResult.recordset[0] as any)?.total_camiones_validos || 0,
+          // Caps para scatter plot
+          scatterCaps: {
+            duracionP98: (scatterCapsResult.recordset[0] as any)?.duracion_p98 || 0,
+            tiempoMuertoP95: (scatterCapsResult.recordset[0] as any)?.tiempo_muerto_p95 || 0
+          },
           camionesPorDia: camionesPorDiaResult.recordset,
+          scatterData: scatterDataResult.recordset,
+          topTiempoMuerto: topTiempoMuertoResult.recordset,
           estadoULs: estadoULsResult.recordset,
           topMatriculas: topMatriculasResult.recordset,
           matriculasMasUsadas: matriculasMasUsadasResult.recordset,
@@ -256,18 +412,40 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
 
         // Query para datos mensuales consolidados (últimos 10 meses)
         const monthlyQuery = `
-          WITH monthly_data AS (
-            SELECT
-              month_start = DATEFROMPARTS(YEAR(fecha), MONTH(fecha), 1),
-              total_camiones = COUNT(*),
-              duracion_promedio = AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END),
-              ocupacion_promedio = AVG(ocupacion_contenedores),
-              total_destinos = SUM(cantidad_destinos),
-              total_uls = SUM(uls)
+          WITH filtered_data AS (
+            SELECT 
+              fecha,
+              duracion_carga_min_clean = CASE 
+                WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 
+                THEN duracion_carga_min 
+                ELSE NULL 
+              END,
+              tiempo_muerto_clean = CASE 
+                WHEN fin_preparacion IS NOT NULL 
+                 AND inicio_carga IS NOT NULL 
+                 AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                 AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720
+                THEN DATEDIFF(minute, fin_preparacion, inicio_carga) 
+                ELSE NULL 
+              END,
+              ocupacion_contenedores,
+              cantidad_destinos,
+              uls
             FROM bi.fact_carga_camion_dia WITH (NOLOCK)
             WHERE fecha >= DATEADD(MONTH, -9, GETDATE())
               AND fecha < DATEADD(MONTH, 1, GETDATE())
               ${matricula ? `AND matricula LIKE '%${matricula}%'` : ''}
+          ),
+          monthly_data AS (
+            SELECT
+              month_start = DATEFROMPARTS(YEAR(fecha), MONTH(fecha), 1),
+              total_camiones = COUNT(*),
+              duracion_promedio = AVG(duracion_carga_min_clean),
+              tiempo_muerto_promedio = AVG(tiempo_muerto_clean),
+              ocupacion_promedio = AVG(ocupacion_contenedores),
+              total_destinos = SUM(cantidad_destinos),
+              total_uls = SUM(uls)
+            FROM filtered_data
             GROUP BY DATEFROMPARTS(YEAR(fecha), MONTH(fecha), 1)
           )
           SELECT TOP 10
@@ -276,10 +454,11 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
             FORMAT(month_start, 'MMM-yy', 'es-AR') as mesAnio,
             total_camiones,
             duracion_promedio,
+            tiempo_muerto_promedio,
             ocupacion_promedio,
             total_destinos,
             total_uls
-          FROM monthly
+          FROM monthly_data
           ORDER BY month_start ASC
         `;
 
@@ -296,17 +475,27 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
         const monthlyArray = monthlyResult.recordset as any[];
         const duracionesHistoricas = monthlyArray.map((m: any) => m.duracion_promedio || 0);
         const ocupacionesHistoricas = monthlyArray.map((m: any) => m.ocupacion_promedio || 0);
+        const tiemposMuertosHistoricos = monthlyArray.map((m: any) => m.tiempo_muerto_promedio || 0);
         
         const promedioDuracionHistorico = duracionesHistoricas.reduce((sum: number, dur: number) => sum + dur, 0) / duracionesHistoricas.length;
         const promedioOcupacionHistorico = ocupacionesHistoricas.reduce((sum: number, ocu: number) => sum + ocu, 0) / ocupacionesHistoricas.length;
+        const promedioTiempoMuertoHistorico = tiemposMuertosHistoricos.reduce((sum: number, tm: number) => sum + tm, 0) / tiemposMuertosHistoricos.length;
+        
         const mejorDuracion = Math.min(...duracionesHistoricas.filter(d => d > 0));
         const peorDuracion = Math.max(...duracionesHistoricas);
         const mejorOcupacion = Math.max(...ocupacionesHistoricas.filter(o => o > 0));
         const peorOcupacion = Math.min(...ocupacionesHistoricas.filter(o => o > 0));
+        const mejorTiempoMuerto = Math.min(...tiemposMuertosHistoricos.filter(t => t > 0));
+        const peorTiempoMuerto = Math.max(...tiemposMuertosHistoricos);
+
+        // Calcular P95 histórico de tiempo muerto
+        const tiemposMuertosOrdenados = tiemposMuertosHistoricos.sort((a, b) => a - b);
+        const p95TiempoMuertoHistorico = tiemposMuertosOrdenados[Math.floor(tiemposMuertosOrdenados.length * 0.95)];
 
         // Obtener valores actuales del período seleccionado
         let duracionActual = 0;
         let ocupacionActual = 0;
+        let tiempoMuertoActual = 0;
         
         if (fechaInicio && fechaFin) {
           const fechaInicioSQL = convertToSQLDate(fechaInicio);
@@ -315,7 +504,13 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
           const currentQuery = `
             SELECT 
               AVG(CASE WHEN duracion_carga_min > 0 AND duracion_carga_min <= 1440 THEN duracion_carga_min ELSE NULL END) as duracion_promedio,
-              AVG(ocupacion_contenedores) as ocupacion_promedio
+              AVG(ocupacion_contenedores) as ocupacion_promedio,
+              AVG(CASE WHEN fin_preparacion IS NOT NULL 
+                       AND inicio_carga IS NOT NULL 
+                       AND DATEDIFF(minute, fin_preparacion, inicio_carga) >= 0
+                       AND DATEDIFF(minute, fin_preparacion, inicio_carga) <= 720
+                  THEN DATEDIFF(minute, fin_preparacion, inicio_carga) 
+                  ELSE NULL END) as tiempo_muerto_promedio
             FROM bi.fact_carga_camion_dia WITH (NOLOCK)
             WHERE fecha >= '${fechaInicioSQL}' AND fecha <= '${fechaFinSQL}'
               ${matricula ? `AND matricula LIKE '%${matricula}%'` : ''}
@@ -326,6 +521,7 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
           
           duracionActual = currentArray[0]?.duracion_promedio || 0;
           ocupacionActual = currentArray[0]?.ocupacion_promedio || 0;
+          tiempoMuertoActual = currentArray[0]?.tiempo_muerto_promedio || 0;
         }
 
         // Calcular brechas
@@ -333,6 +529,8 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
         const brechaDuracionVsMejor = duracionActual - mejorDuracion;
         const brechaOcupacionVsPromedio = ocupacionActual - promedioOcupacionHistorico;
         const brechaOcupacionVsMejor = ocupacionActual - mejorOcupacion;
+        const brechaTiempoMuertoVsPromedio = tiempoMuertoActual - promedioTiempoMuertoHistorico;
+        const brechaTiempoMuertoVsMejor = tiempoMuertoActual - mejorTiempoMuerto;
 
         // Formatear datos mensuales para el gráfico
         const datosMensuales = monthlyArray.map((m: any) => ({
@@ -341,6 +539,7 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
           mesAnio: m.mesAnio,
           total_camiones: m.total_camiones,
           duracion_promedio: m.duracion_promedio,
+          tiempo_muerto_promedio: m.tiempo_muerto_promedio,
           ocupacion_promedio: m.ocupacion_promedio,
           total_destinos: m.total_destinos,
           total_uls: m.total_uls
@@ -355,12 +554,20 @@ export const expedicionesRoute = async (app: FastifyInstance): Promise<void> => 
           promedioOcupacionHistorico,
           mejorOcupacion,
           peorOcupacion,
+          // Nuevos KPIs de tiempo muerto
+          promedioTiempoMuertoHistorico,
+          mejorTiempoMuerto,
+          peorTiempoMuerto,
+          p95TiempoMuertoHistorico,
           duracionActual,
           ocupacionActual,
+          tiempoMuertoActual,
           brechaDuracionVsPromedio,
           brechaDuracionVsMejor,
           brechaOcupacionVsPromedio,
           brechaOcupacionVsMejor,
+          brechaTiempoMuertoVsPromedio,
+          brechaTiempoMuertoVsMejor,
           generatedAt: new Date().toISOString()
         };
 
