@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const navigation = [
   { name: "FullFillment", href: "/dashboard/fulfillment" },
@@ -74,7 +75,7 @@ export default function DashboardLayout({
 
         {/* Page Content */}
         <main className="p-6">
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
     </div>

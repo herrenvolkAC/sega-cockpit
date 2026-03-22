@@ -105,10 +105,7 @@ export default function FulfillmentPage() {
   // Fetch data from API con filtros de fecha y SKU (debounced)
   const fetchFulfillmentData = useCallback(
     async () => {
-      console.log('fetchFulfillmentData called with:', { fechaInicio, fechaFin, sku: skuRef.current });
-      
       if (!fechaInicio || !fechaFin) {
-        console.log('Fechas no definidas, no se realiza la consulta');
         return;
       }
 
@@ -130,8 +127,6 @@ export default function FulfillmentPage() {
         }
         
         const url = `/fulfillment?${params}`;
-        console.log('Requesting URL:', url);
-        
         const response = await fetch(url);
         const result = await response.json();
         
@@ -157,8 +152,7 @@ export default function FulfillmentPage() {
         }
         
         setData(result);
-      } catch (error) {
-        console.error('Error fetching fulfillment data:', error);
+      } catch {
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);
@@ -170,10 +164,7 @@ export default function FulfillmentPage() {
   // Fetch benchmark data
   const fetchBenchmarkData = useCallback(
     async () => {
-      console.log('fetchBenchmarkData called with:', { fechaInicio, fechaFin, sku: skuRef.current });
-      
       if (!fechaInicio || !fechaFin) {
-        console.log('Fechas no definidas, no se realiza la consulta de benchmark');
         return;
       }
       
@@ -188,8 +179,6 @@ export default function FulfillmentPage() {
         }
         
         const url = `/fulfillment/benchmark?${params}`;
-        console.log('Requesting benchmark URL:', url);
-        
         const response = await fetch(url);
         const result = await response.json();
         
@@ -198,8 +187,7 @@ export default function FulfillmentPage() {
         }
         
         setBenchmarkData(result);
-      } catch (error) {
-        console.error('Error fetching benchmark data:', error);
+      } catch {
         setBenchmarkData(null);
       }
     },
@@ -306,10 +294,6 @@ export default function FulfillmentPage() {
               <div className="text-base text-gray-600 dark:text-gray-400 mt-1">
                 {(() => {
                   try {
-                    console.log('=== DATE DEBUG ===');
-                    console.log('fechaInicio input:', fechaInicio);
-                    console.log('fechaFin input:', fechaFin);
-                    
                     let startDateStr = 'Rango seleccionado';
                     let endDateStr = '';
                     
@@ -388,8 +372,7 @@ export default function FulfillmentPage() {
                         </span> (Meta 95%)
                       </>
                     );
-                  } catch (error) {
-                    console.log('Date formatting error:', error);
+                  } catch {
                     return 'Rango seleccionado · ';
                   }
                 })()}

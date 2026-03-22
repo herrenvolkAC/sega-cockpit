@@ -196,10 +196,10 @@ export default function ExpedicionesPage() {
   // Fetch data from API con filtros de fecha y matrícula (debounced)
   const fetchExpedicionesData = useCallback(
     async () => {
-      console.log('fetchExpedicionesData called with:', { fechaInicio, fechaFin, matricula: matriculaRef.current });
+
       
       if (!fechaInicio || !fechaFin) {
-        console.log('Fechas no definidas, no se realiza la consulta');
+
         return;
       }
 
@@ -216,7 +216,7 @@ export default function ExpedicionesPage() {
         }
         
         const url = `/expediciones?${params}`;
-        console.log('Requesting URL:', url);
+
         
         const response = await fetch(url);
         const result = await response.json();
@@ -227,7 +227,7 @@ export default function ExpedicionesPage() {
         
         setData(result);
       } catch (error) {
-        console.error('Error fetching expediciones data:', error);
+
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);
@@ -239,10 +239,10 @@ export default function ExpedicionesPage() {
   // Fetch benchmark data
   const fetchBenchmarkData = useCallback(
     async () => {
-      console.log('fetchBenchmarkData called with:', { fechaInicio, fechaFin, matricula: matriculaRef.current });
+
       
       if (!fechaInicio || !fechaFin) {
-        console.log('Fechas no definidas, no se realiza la consulta de benchmark');
+
         return;
       }
       
@@ -257,20 +257,20 @@ export default function ExpedicionesPage() {
         }
         
         const url = `/expediciones/benchmark?${params}`;
-        console.log('Requesting benchmark URL:', url);
+
         
         const response = await fetch(url);
         const result = await response.json();
         
         if (result.error) {
-          console.error('Error en benchmark:', result.error);
+
           const errorMessage = result.error?.message || result.error?.code || JSON.stringify(result.error) || 'Error desconocido al obtener datos de benchmark';
           throw new Error(errorMessage);
         }
         
         setBenchmarkData(result);
       } catch (error) {
-        console.error('Error fetching benchmark data:', error);
+
         setBenchmarkData(null);
       }
     },
@@ -307,12 +307,12 @@ export default function ExpedicionesPage() {
   // Calcular total para porcentajes del PieChart
   const totalULs = useMemo(() => {
     if (!data?.estadoULs) {
-      console.log('estadoULs is null or undefined');
+
       return 0;
     }
-    console.log('estadoULs data:', data.estadoULs);
+
     const total = data.estadoULs.reduce((sum: number, item: any) => sum + item.value, 0);
-    console.log('Calculated totalULs:', total);
+
     return total;
   }, [data?.estadoULs]);
 
@@ -678,7 +678,7 @@ export default function ExpedicionesPage() {
                       </>
                     );
                   } catch (error) {
-                    console.log('Date formatting error:', error);
+
                     return 'Rango seleccionado · ';
                   }
                 })()}

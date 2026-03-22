@@ -37,8 +37,6 @@ export async function GET(req: Request) {
     const data = (await res.json()) as StatusResponse;
     return NextResponse.json(data, { status: 200 });
   } catch (err: unknown) {
-    console.error("[api/status] error:", err);
-
     if (err instanceof Error && err.name === "AbortError") {
       return NextResponse.json({ error: "Upstream timeout" }, { status: 504 });
     }

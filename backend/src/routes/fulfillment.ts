@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sql from "mssql";
 import { MemoryCache } from "../cache";
 import { config } from "../config";
-import { query, getPool } from "../db";
+import { getPool } from "../db";
 import { ErrorResponse } from "../types";
 
 interface FulfillmentQuerystring {
@@ -11,7 +11,28 @@ interface FulfillmentQuerystring {
   sku?: string;
 }
 
-const cache = new MemoryCache<any>(config.cacheTtlSeconds);
+interface FulfillmentKpiRow {
+  total_pedidos?: number;
+  total_solicitado?: number;
+  total_faltantes?: number;
+  tasa_satisfaccion?: number;
+}
+
+interface MonthlyRow {
+  anio: number;
+  mes: number;
+  mesAnio: string;
+  solicitado: number;
+  entregado: number;
+  fill_rate: number;
+}
+
+interface CurrentPeriodRow {
+  qty_solicitada: number;
+  faltantes: number;
+}
+
+const cache = new MemoryCache<unknown>(config.cacheTtlSeconds);
 
 const errorResponse = (code: string, message: string): ErrorResponse => ({
   ok: false,
@@ -27,215 +48,204 @@ const extractDatabaseName = (connectionString: string): string => {
   }
 };
 
-// Convertir fecha DD/MM/YYYY a YYYYMMDD para date_key
+// Convertir fecha DD/MM/YYYY o YYYY-MM-DD a YYYYMMDD para date_key
 const convertToDateKey = (fechaStr: string): string => {
   if (!fechaStr) return "";
-  
-  // Si viene en formato YYYY-MM-DD (del input type="date")
-  if (fechaStr.includes('-')) {
-    return fechaStr.replace(/-/g, '').substring(0, 8); // YYYY-MM-DD -> YYYYMMDD
+  if (fechaStr.includes("-")) {
+    return fechaStr.replace(/-/g, "").substring(0, 8);
   }
-  
-  // Si viene en formato DD/MM/YYYY
-  const parts = fechaStr.split('/');
+  const parts = fechaStr.split("/");
   if (parts.length === 3) {
-    return `${parts[2]}${parts[1].padStart(2, '0')}${parts[0].padStart(2, '0')}`;
+    return `${parts[2]}${parts[1].padStart(2, "0")}${parts[0].padStart(2, "0")}`;
   }
-  
   return fechaStr;
 };
 
+const dateKeyDaysAgo = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10).replace(/-/g, "");
+};
+
+const todayDateKey = (): string =>
+  new Date().toISOString().slice(0, 10).replace(/-/g, "");
+
 export const fulfillmentRoute = async (app: FastifyInstance): Promise<void> => {
-  app.get(
+  app.get<{ Querystring: FulfillmentQuerystring }>(
     "/fulfillment",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Querystring: FulfillmentQuerystring }>,
+      reply: FastifyReply
+    ) => {
       const startedAt = Date.now();
-      const query = request.query as any;
-      
-      // Acceder manualmente a los parámetros
-      const fechaInicio = query.fechaInicio as string;
-      const fechaFin = query.fechaFin as string;
-      const sku = query.sku as string;
-      
-      // Debug: Mostrar parámetros recibidos
-      console.log({
-        endpoint: "/fulfillment",
-        rawQuery: query,
-        params: { fechaInicio, fechaFin, sku }
-      });
-      
-      // Crear condición de filtro por SKU si se proporciona
-      const skuCondition = sku ? `AND SKU LIKE '%${sku}%'` : '';
-      
-      console.log('Backend received:', { fechaInicio, fechaFin, sku });
-      console.log('SKU Condition:', skuCondition);
+      const { fechaInicio, fechaFin, sku } = request.query;
 
-      // Crear cache key basado en las fechas y SKU
-      const cacheKey = `fulfillment_${fechaInicio || 'default'}_${fechaFin || 'default'}_${sku || 'all'}`;
+      const fechaInicioKey = fechaInicio
+        ? convertToDateKey(fechaInicio)
+        : dateKeyDaysAgo(30);
+      const fechaFinKey = fechaFin ? convertToDateKey(fechaFin) : todayDateKey();
 
-      // Check cache first
+      if (!fechaInicioKey || !fechaFinKey) {
+        return reply
+          .status(400)
+          .send(errorResponse("INVALID_DATE_RANGE", "Fechas inválidas"));
+      }
+
+      const skuFilter = sku?.trim() ? `%${sku.trim()}%` : null;
+      const cacheKey = `fulfillment_${fechaInicioKey}_${fechaFinKey}_${sku || "all"}`;
+
       const cached = cache.get(cacheKey);
       if (cached) {
         request.log.info({
           endpoint: "/fulfillment",
           durationMs: Date.now() - startedAt,
           cache: "hit",
-          fechaInicio,
-          fechaFin,
         });
         return cached;
       }
 
       try {
-        // Convertir fechas o usar defaults
-        const fechaInicioKey = fechaInicio 
-          ? convertToDateKey(fechaInicio)
-          : '20260118'; // 30 días atrás desde hoy (17/02/2026)
-          
-        const fechaFinKey = fechaFin
-          ? convertToDateKey(fechaFin)
-          : '20260217'; // Hoy
-
-        // Validar que las fechas sean válidas
-        if (!fechaInicioKey || !fechaFinKey) {
-          const errorRes = errorResponse(
-            "INVALID_DATE_RANGE",
-            "Fechas inválidas"
-          );
-          return reply.status(400).send(errorRes);
-        }
-
-        // Ejecutar consultas con conexión directa para evitar el error query2
+        const fechaInicioInt = parseInt(fechaInicioKey, 10);
+        const fechaFinInt = parseInt(fechaFinKey, 10);
         const connection = await getPool();
-        
-        const totalPedidosResult = await connection.request()
-          .query(`SELECT COUNT(DISTINCT codigo_pedido) as total_pedidos 
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}`);
 
-        const totalSolicitadoResult = await connection.request()
-          .query(`SELECT SUM(qty_solicitada) as total_solicitado 
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}`);
+        // Crea un request con los parámetros comunes pre-cargados
+        const makeRequest = () =>
+          connection
+            .request()
+            .input("fechaInicioKey", sql.Int, fechaInicioInt)
+            .input("fechaFinKey", sql.Int, fechaFinInt)
+            .input("skuFilter", sql.NVarChar(200), skuFilter);
 
-        const totalFaltantesResult = await connection.request()
-          .query(`SELECT SUM(shortage_qty) as total_faltantes 
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}`);
+        const baseWhere = `WHERE date_key BETWEEN @fechaInicioKey AND @fechaFinKey
+          AND (@skuFilter IS NULL OR SKU LIKE @skuFilter)`;
 
-        const tasaSatisfaccionResult = await connection.request()
-          .query(`SELECT (1 - (SUM(shortage_qty) * 1.0 / NULLIF(SUM(qty_solicitada), 0))) * 100 as tasa_satisfaccion
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}`);
+        const [
+          totalPedidosResult,
+          totalSolicitadoResult,
+          totalFaltantesResult,
+          tasaSatisfaccionResult,
+          pedidosPorDiaResult,
+          estadoFulfillmentResult,
+          productosConShortageResult,
+          productosTopResult,
+          pedidosRecientesResult,
+        ] = await Promise.all([
+          makeRequest().query(
+            `SELECT COUNT(DISTINCT codigo_pedido) as total_pedidos
+             FROM bi.fact_fulfillment_line_day ${baseWhere}`
+          ),
+          makeRequest().query(
+            `SELECT SUM(qty_solicitada) as total_solicitado
+             FROM bi.fact_fulfillment_line_day ${baseWhere}`
+          ),
+          makeRequest().query(
+            `SELECT SUM(shortage_qty) as total_faltantes
+             FROM bi.fact_fulfillment_line_day ${baseWhere}`
+          ),
+          makeRequest().query(
+            `SELECT (1 - (SUM(shortage_qty) * 1.0 / NULLIF(SUM(qty_solicitada), 0))) * 100 as tasa_satisfaccion
+             FROM bi.fact_fulfillment_line_day ${baseWhere}`
+          ),
+          makeRequest().query(
+            `SELECT FORMAT(DATEFROMPARTS(date_key / 10000, date_key % 10000 / 100, date_key % 100), 'dd/MM') as dia,
+                    COUNT(DISTINCT codigo_pedido) as pedidos,
+                    SUM(qty_solicitada) as qty_solicitada,
+                    SUM(shortage_qty) as faltantes
+             FROM bi.fact_fulfillment_line_day ${baseWhere}
+             GROUP BY date_key
+             ORDER BY date_key`
+          ),
+          makeRequest().query(
+            `SELECT CASE WHEN shortage_qty = 0 THEN 'Completo'
+                         WHEN shortage_qty < qty_solicitada * 0.1 THEN 'Parcial'
+                         ELSE 'Con Faltantes' END as name,
+                    COUNT(*) as value,
+                    CASE WHEN shortage_qty = 0 THEN '#10b981'
+                         WHEN shortage_qty < qty_solicitada * 0.1 THEN '#f59e0b'
+                         ELSE '#ef4444' END as color
+             FROM bi.fact_fulfillment_line_day ${baseWhere}
+             GROUP BY CASE WHEN shortage_qty = 0 THEN 'Completo'
+                           WHEN shortage_qty < qty_solicitada * 0.1 THEN 'Parcial'
+                           ELSE 'Con Faltantes' END,
+                      CASE WHEN shortage_qty = 0 THEN '#10b981'
+                           WHEN shortage_qty < qty_solicitada * 0.1 THEN '#f59e0b'
+                           ELSE '#ef4444' END`
+          ),
+          makeRequest().query(
+            `SELECT TOP 20 articulo_desc as name, SUM(shortage_qty) as shortage
+             FROM bi.fact_fulfillment_line_day ${baseWhere}
+               AND shortage_qty > 0
+             GROUP BY articulo_desc
+             ORDER BY SUM(shortage_qty) DESC`
+          ),
+          makeRequest().query(
+            `SELECT TOP 5 articulo_desc as nombre, SUM(shortage_qty) as monto, COUNT(*) as cantidad
+             FROM bi.fact_fulfillment_line_day ${baseWhere}
+               AND shortage_qty > 0
+             GROUP BY articulo_desc
+             ORDER BY (SUM(shortage_qty) * 1.0 / NULLIF(SUM(qty_solicitada), 0)) DESC`
+          ),
+          makeRequest().query(
+            `SELECT TOP 5 codigo_pedido as id, 'Cliente Desconocido' as cliente,
+                    SUM(shortage_qty) as monto_faltante,
+                    CASE WHEN SUM(shortage_qty) = 0 THEN 'completado'
+                         WHEN SUM(shortage_qty) < SUM(qty_solicitada) * 0.1 THEN 'parcial'
+                         ELSE 'con_faltantes' END as estado,
+                    MAX(date_key) as fecha
+             FROM bi.fact_fulfillment_line_day ${baseWhere}
+             GROUP BY codigo_pedido
+             ORDER BY MAX(date_key) DESC`
+          ),
+        ]);
 
-        const pedidosPorDiaResult = await connection.request()
-          .query(`SELECT FORMAT(DATEFROMPARTS(date_key / 10000, date_key % 10000 / 100, date_key % 100), 'dd/MM') as dia,
-                          COUNT(DISTINCT codigo_pedido) as pedidos,
-                          SUM(qty_solicitada) as qty_solicitada,
-                          SUM(shortage_qty) as faltantes
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}
-                   GROUP BY date_key
-                   ORDER BY date_key`);
+        const kpiRow = totalPedidosResult.recordset[0] as FulfillmentKpiRow;
+        const solRow = totalSolicitadoResult.recordset[0] as FulfillmentKpiRow;
+        const fltRow = totalFaltantesResult.recordset[0] as FulfillmentKpiRow;
+        const tsRow = tasaSatisfaccionResult.recordset[0] as FulfillmentKpiRow;
 
-        const estadoFulfillmentResult = await connection.request()
-          .query(`SELECT CASE WHEN shortage_qty = 0 THEN 'Completo'
-                                 WHEN shortage_qty < qty_solicitada * 0.1 THEN 'Parcial'
-                                 ELSE 'Con Faltantes' END as name,
-                          COUNT(*) as value,
-                          CASE WHEN shortage_qty = 0 THEN '#10b981'
-                                 WHEN shortage_qty < qty_solicitada * 0.1 THEN '#f59e0b'
-                                 ELSE '#ef4444' END as color
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}
-                   GROUP BY CASE WHEN shortage_qty = 0 THEN 'Completo'
-                               WHEN shortage_qty < qty_solicitada * 0.1 THEN 'Parcial'
-                               ELSE 'Con Faltantes' END,
-                            CASE WHEN shortage_qty = 0 THEN '#10b981'
-                                 WHEN shortage_qty < qty_solicitada * 0.1 THEN '#f59e0b'
-                                 ELSE '#ef4444' END`);
-
-        const productosConShortageResult = await connection.request()
-          .query(`SELECT TOP 20 articulo_desc as name, SUM(shortage_qty) as shortage
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}
-                     AND shortage_qty > 0
-                   GROUP BY articulo_desc
-                   ORDER BY SUM(shortage_qty) DESC`);
-
-        const productosTopResult = await connection.request()
-          .query(`SELECT TOP 5 articulo_desc as nombre, SUM(shortage_qty) as monto, COUNT(*) as cantidad
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}
-                     AND shortage_qty > 0
-                   GROUP BY articulo_desc
-                   ORDER BY (SUM(shortage_qty) * 1.0 / NULLIF(SUM(qty_solicitada), 0)) DESC`);
-
-        const pedidosRecientesResult = await connection.request()
-          .query(`SELECT TOP 5 codigo_pedido as id, 'Cliente Desconocido' as cliente,
-                          SUM(shortage_qty) as monto_faltante,
-                          CASE WHEN SUM(shortage_qty) = 0 THEN 'completado'
-                                 WHEN SUM(shortage_qty) < SUM(qty_solicitada) * 0.1 THEN 'parcial'
-                                 ELSE 'con_faltantes' END as estado,
-                          MAX(date_key) as fecha
-                   FROM bi.fact_fulfillment_line_day 
-                   WHERE date_key BETWEEN ${fechaInicioKey} AND ${fechaFinKey} ${skuCondition}
-                   GROUP BY codigo_pedido
-                   ORDER BY MAX(date_key) DESC`);
-
-        // Estructurar respuesta
         const response = {
           databaseName: extractDatabaseName(config.mssqlConnectionString),
-          fechaInicio: fechaInicio || null,
-          fechaFin: fechaFin || null,
-          totalPedidos: (totalPedidosResult.recordset[0] as any)?.total_pedidos || 0,
-          totalSolicitado: (totalSolicitadoResult.recordset[0] as any)?.total_solicitado || 0,
-          totalFaltantes: (totalFaltantesResult.recordset[0] as any)?.total_faltantes || 0,
-          tasaSatisfaccion: (tasaSatisfaccionResult.recordset[0] as any)?.tasa_satisfaccion || 0,
+          fechaInicio: fechaInicio ?? null,
+          fechaFin: fechaFin ?? null,
+          totalPedidos: kpiRow?.total_pedidos ?? 0,
+          totalSolicitado: solRow?.total_solicitado ?? 0,
+          totalFaltantes: fltRow?.total_faltantes ?? 0,
+          tasaSatisfaccion: tsRow?.tasa_satisfaccion ?? 0,
           pedidosPorDia: pedidosPorDiaResult.recordset,
           estadoFulfillment: estadoFulfillmentResult.recordset,
           productosConShortage: productosConShortageResult.recordset,
           productosTop: productosTopResult.recordset,
           pedidosRecientes: pedidosRecientesResult.recordset,
-          generatedAt: new Date().toISOString()
+          generatedAt: new Date().toISOString(),
         };
 
-        // Cache response (por menos tiempo si hay fechas específicas)
-        const cacheTtlValue = fechaInicio && fechaFin ? 60 : config.cacheTtlSeconds; // 1 min si hay filtros, default si no
-        
         cache.set(cacheKey, response);
-
-        console.log({
+        request.log.info({
           endpoint: "/fulfillment",
           durationMs: Date.now() - startedAt,
           cache: "miss",
-          fechaInicio,
-          fechaFin,
-          cacheTtl: cacheTtlValue,
         });
-
         return response;
       } catch (error) {
-        console.error({
+        request.log.error({
           endpoint: "/fulfillment",
           error: error instanceof Error ? error.message : String(error),
           durationMs: Date.now() - startedAt,
-          fechaInicio,
-          fechaFin,
-          sku,
         });
-
-        const errorRes = errorResponse(
-          "DATABASE_ERROR",
-          "Error al obtener datos de fulfillment"
-        );
-        return reply.status(500).send(errorRes);
+        return reply
+          .status(500)
+          .send(
+            errorResponse(
+              "DATABASE_ERROR",
+              "Error al obtener datos de fulfillment"
+            )
+          );
       }
     }
   );
 
-  // Nuevo endpoint para benchmark histórico
-  app.get(
+  app.get<{ Querystring: FulfillmentQuerystring }>(
     "/fulfillment/benchmark",
     async (
       request: FastifyRequest<{ Querystring: FulfillmentQuerystring }>,
@@ -248,8 +258,6 @@ export const fulfillmentRoute = async (app: FastifyInstance): Promise<void> => {
         const pool = await getPool();
         const databaseName = extractDatabaseName(config.mssqlConnectionString);
 
-        // Query para datos mensuales consolidados (últimos 10 meses)
-        // Corregida para calcular correctamente por mes con variabilidad real
         const monthlyQuery = `
           WITH monthly AS (
             SELECT
@@ -263,7 +271,7 @@ export const fulfillmentRoute = async (app: FastifyInstance): Promise<void> => {
             FROM bi.fact_fulfillment_line_day
             WHERE date_key >= FORMAT(DATEADD(MONTH, -9, GETDATE()), 'yyyyMMdd')
               AND date_key < FORMAT(DATEADD(MONTH, 1, GETDATE()), 'yyyyMMdd')
-              ${sku ? `AND sku = @sku` : ''}
+              ${sku ? `AND sku = @sku` : ""}
             GROUP BY DATEFROMPARTS(
               CAST(SUBSTRING(CAST(date_key AS VARCHAR), 1, 4) AS INT),
               CAST(SUBSTRING(CAST(date_key AS VARCHAR), 5, 2) AS INT),
@@ -276,117 +284,100 @@ export const fulfillmentRoute = async (app: FastifyInstance): Promise<void> => {
             FORMAT(month_start, 'MMM-yy', 'es-AR') as mesAnio,
             solicitado_units as solicitado,
             entregado_units as entregado,
-            fill_rate = CASE 
-              WHEN solicitado_units > 0 
-              THEN (entregado_units * 1.0 / solicitado_units) * 100 
-              ELSE 0 
+            fill_rate = CASE
+              WHEN solicitado_units > 0
+              THEN (entregado_units * 1.0 / solicitado_units) * 100
+              ELSE 0
             END
           FROM monthly
           ORDER BY month_start ASC
         `;
 
-        console.log('=== MONTHLY QUERY DEBUG ===');
-        console.log('Query:', monthlyQuery);
-        console.log('SKU filter:', sku || 'none');
-
         const monthlyResult = await pool
           .request()
-          .input("sku", sku || null)
+          .input("sku", sql.VarChar(80), sku ?? null)
           .query(monthlyQuery);
 
-        console.log('=== MONTHLY RESULT DEBUG ===');
-        console.log('Raw result:', monthlyResult.recordset);
+        const monthlyArray = monthlyResult.recordset as MonthlyRow[];
+        const nivelesServicio = monthlyArray.map((m) => m.fill_rate ?? 0);
+        const promedioHistorico = nivelesServicio.length
+          ? nivelesServicio.reduce((s, n) => s + n, 0) / nivelesServicio.length
+          : 0;
+        const mejorMes = nivelesServicio.length
+          ? Math.max(...nivelesServicio)
+          : 0;
+        const peorMes = nivelesServicio.length
+          ? Math.min(...nivelesServicio)
+          : 0;
 
-        // Calcular promedio histórico y mejor mes
-        const monthlyArray = monthlyResult.recordset as any[];
-        const nivelesServicio = monthlyArray.map((m: any) => m.fill_rate || 0);
-        const promedioHistorico = nivelesServicio.reduce((sum: number, nivel: number) => sum + nivel, 0) / nivelesServicio.length;
-        const mejorMes = Math.max(...nivelesServicio);
-        const peorMes = Math.min(...nivelesServicio);
-
-        // Obtener nivel actual del período seleccionado
         let nivelActual = 0;
         if (fechaInicio && fechaFin) {
           const fechaInicioKey = convertToDateKey(fechaInicio);
           const fechaFinKey = convertToDateKey(fechaFin);
 
           const currentQuery = `
-            SELECT 
+            SELECT
               SUM(qty_solicitada) as qty_solicitada,
               SUM(shortage_qty) as faltantes
             FROM bi.fact_fulfillment_line_day
             WHERE date_key BETWEEN @fechaInicio AND @fechaFin
-              ${sku ? `AND sku = @sku` : ''}
+              ${sku ? `AND sku = @sku` : ""}
           `;
 
           const currentResult = await pool
             .request()
-            .input("fechaInicio", fechaInicioKey)
-            .input("fechaFin", fechaFinKey)
-            .input("sku", sku || null)
+            .input("fechaInicio", sql.Int, parseInt(fechaInicioKey, 10))
+            .input("fechaFin", sql.Int, parseInt(fechaFinKey, 10))
+            .input("sku", sql.VarChar(80), sku ?? null)
             .query(currentQuery);
 
-          const currentArray = currentResult.recordset as any[];
-          const totalSolicitado = currentArray[0]?.qty_solicitada || 0;
-          const totalFaltantes = currentArray[0]?.faltantes || 0;
-          
-          nivelActual = totalSolicitado > 0 
-            ? ((totalSolicitado - totalFaltantes) / totalSolicitado) * 100 
-            : 0;
+          const cur = (currentResult.recordset as CurrentPeriodRow[])[0];
+          const totalSolicitado = cur?.qty_solicitada ?? 0;
+          const totalFaltantes = cur?.faltantes ?? 0;
+          nivelActual =
+            totalSolicitado > 0
+              ? ((totalSolicitado - totalFaltantes) / totalSolicitado) * 100
+              : 0;
         }
-
-        // Calcular brechas
-        const brechaVsPromedio = nivelActual - promedioHistorico;
-        const brechaVsMejor = nivelActual - mejorMes;
-
-        // Formatear datos mensuales para el gráfico
-        const datosMensuales = monthlyArray.map((m: any) => ({
-          anio: m.anio,
-          mes: m.mes,
-          mesAnio: m.mesAnio,
-          solicitado: m.solicitado,
-          entregado: m.entregado,
-          nivelServicio: m.fill_rate
-        }));
 
         const response = {
           databaseName,
-          datosMensuales,
+          datosMensuales: monthlyArray.map((m) => ({
+            anio: m.anio,
+            mes: m.mes,
+            mesAnio: m.mesAnio,
+            solicitado: m.solicitado,
+            entregado: m.entregado,
+            nivelServicio: m.fill_rate,
+          })),
           promedioHistorico,
           mejorMes,
           peorMes,
           nivelActual,
-          brechaVsPromedio,
-          brechaVsMejor,
-          generatedAt: new Date().toISOString()
+          brechaVsPromedio: nivelActual - promedioHistorico,
+          brechaVsMejor: nivelActual - mejorMes,
+          generatedAt: new Date().toISOString(),
         };
 
-        console.log('=== BENCHMARK RESPONSE DEBUG ===');
-        console.log('Monthly data:', datosMensuales);
-        console.log('Promedio histórico:', promedioHistorico);
-        console.log('Mejor mes:', mejorMes);
-        console.log('Peor mes:', peorMes);
-        console.log('Nivel actual:', nivelActual);
-        console.log('Brecha vs promedio:', brechaVsPromedio);
-        console.log('Brecha vs mejor:', brechaVsMejor);
-
+        request.log.info({
+          endpoint: "/fulfillment/benchmark",
+          durationMs: Date.now() - startedAt,
+        });
         return response;
       } catch (error) {
-        console.error({
+        request.log.error({
           endpoint: "/fulfillment/benchmark",
           error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
           durationMs: Date.now() - startedAt,
-          fechaInicio,
-          fechaFin,
-          sku,
         });
-
-        const errorRes = errorResponse(
-          "DATABASE_ERROR",
-          "Error al obtener datos de benchmark histórico"
-        );
-        return reply.status(500).send(errorRes);
+        return reply
+          .status(500)
+          .send(
+            errorResponse(
+              "DATABASE_ERROR",
+              "Error al obtener datos de benchmark histórico"
+            )
+          );
       }
     }
   );

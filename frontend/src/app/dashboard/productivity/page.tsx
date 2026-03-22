@@ -108,11 +108,11 @@ export default function ProductivityPage() {
   const [operacion, setOperacion] = useState('PICKING');
 
   // Debug: Log inicial
-  console.log('ProductivityPage mounted');
+
 
   // Fetch data from API
   const fetchProductivityData = useCallback(async () => {
-    console.log('fetchProductivityData called', { fechaInicio, fechaFin, operacion });
+
     
     if (!fechaInicio || !fechaFin) {
       alert('Por favor seleccione un rango de fechas');
@@ -128,20 +128,14 @@ export default function ProductivityPage() {
       params.append('toDate', fechaFin);
       
       const url = `/api/productividad?${params}`;
-      console.log('Requesting URL:', url);
+
       
       const response = await fetch(url);
       const result = await response.json();
       
-      console.log('=== FRONTEND API RESPONSE ===');
-      console.log('Raw response:', result);
-      console.log('Response structure:', {
-        hasDaily: !!result.daily,
-        dailyLength: result.daily?.length,
-        hasCards: !!result.cards,
-        hasPerOperator: !!result.perOperator,
-        perOperatorLength: result.perOperator?.length
-      });
+
+
+
       
       if (!response.ok) {
         throw new Error(result.error?.message || 'Error desconocido');
@@ -149,7 +143,7 @@ export default function ProductivityPage() {
       
       setData(result);
     } catch (error) {
-      console.error('Error fetching productivity data:', error);
+
       alert('Error al cargar datos de productividad: ' + (error as Error).message);
     } finally {
       setLoading(false);
@@ -157,7 +151,7 @@ export default function ProductivityPage() {
   }, [fechaInicio, fechaFin, operacion]);
 
   useEffect(() => {
-    console.log('useEffect running');
+
     // Establecer fechas por defecto (últimos 7 días)
     const today = new Date();
     const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -165,20 +159,20 @@ export default function ProductivityPage() {
     const inicioStr = today.toISOString().split('T')[0];
     const finStr = sevenDaysAgo.toISOString().split('T')[0];
     
-    console.log('Setting default dates:', { inicioStr, finStr });
+
     
     setFechaFin(inicioStr);
     setFechaInicio(finStr);
   }, []);
 
   const handleLimpiar = () => {
-    console.log('handleLimpiar called');
+
     setFechaInicio('');
     setFechaFin('');
     setData(null);
   };
 
-  console.log('Current state:', { data, loading, fechaInicio, fechaFin });
+
 
   if (loading) {
     return (

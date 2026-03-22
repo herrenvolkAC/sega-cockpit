@@ -32,25 +32,9 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
       to_date_next.setDate(to_date_next.getDate() + 1);
       const to_date_next_str = to_date_next.toISOString().split('T')[0];
       
-      console.log('=== RECEPCIONES REQUEST ===');
-      console.log('Params:', { fechaInicio, fechaFin, proveedor, sku });
-      console.log('Dates:', { from_date, to_date, to_date_next_str });
-      console.log('Starting query execution...');
-      
-      // Helper para medir tiempo de queries
-      const executeWithTiming = async (queryName: string, queryFn: Promise<any>) => {
-        const startTime = Date.now();
-        console.log(`[${queryName}] Starting...`);
-        try {
-          const result = await queryFn;
-          const duration = Date.now() - startTime;
-          console.log(`[${queryName}] COMPLETED: ${duration}ms, Rows: ${result.recordset.length}`);
-          return result;
-        } catch (error) {
-          const duration = Date.now() - startTime;
-          console.error(`[${queryName}] ERROR after ${duration}ms:`, error);
-          throw error;
-        }
+      // Helper para ejecutar queries con manejo de errores
+      const executeWithTiming = async (_queryName: string, queryFn: Promise<any>) => {
+        return queryFn;
       };
 
       // Helper para crear request con timeout limpio
@@ -175,14 +159,6 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
       // Ejecutar query de KPIs por separado
       const kpisPeriodoResult = await executeWithTiming('KPIS_PERIODO', createTimedRequest().query(kpisPeriodoQuery));
 
-      console.log('Queries ejecutadas:', {
-        uls: ulsResult.recordset.length,
-        cajas: cajasResult.recordset.length,
-        tiempoRecepcion: tiempoRecepcionResult.recordset.length,
-        tiempoCamion: tiempoCamionResult.recordset.length,
-        seccion: seccionResult.recordset.length,
-        kpisPeriodo: kpisPeriodoResult.recordset.length
-      });
 
       // Formatear datos para el frontend
       const ulsPorDia = ulsResult.recordset.map((row: any) => ({
@@ -336,18 +312,10 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
         generatedAt: new Date().toISOString()
       };
 
-      console.log('Response prepared:', {
-        totalUls: response.kpis.totalUls,
-        totalCajas: response.kpis.totalCajas,
-        totalDias: response.kpis.totalDias,
-        tiempoPromedio: response.kpis.tiempoPromedioRecepcion,
-        totalSecciones: response.kpis.totalSecciones
-      });
-
       return reply.send(response);
 
     } catch (error) {
-      console.error('Error en recepciones route:', error);
+      fastify.log.error({ endpoint: "/recepciones", error: error instanceof Error ? error.message : String(error) });
       return reply.status(500).send({
         error: {
           message: 'Error interno del servidor',

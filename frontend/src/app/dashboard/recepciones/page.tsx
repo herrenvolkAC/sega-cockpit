@@ -99,7 +99,7 @@ export default function RecepcionesPage() {
   // Fetch data from API con filtros de fecha, proveedor y SKU
   const fetchRecepcionesData = useCallback(
     async () => {
-      console.log('fetchRecepcionesData called with:', { fechaInicio, fechaFin, proveedor, sku });
+
       
       if (!fechaInicio || !fechaFin) {
         alert('Por favor seleccione un rango de fechas');
@@ -129,7 +129,7 @@ export default function RecepcionesPage() {
         }
         
         const url = `/api/recepciones?${params}`;
-        console.log('Requesting URL:', url);
+
         
         const response = await fetch(url);
         
@@ -140,7 +140,7 @@ if (!response.ok) {
 const result = await response.json();
 setData(result.data);
       } catch (error) {
-        console.error('Error fetching recepciones data:', error);
+
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);

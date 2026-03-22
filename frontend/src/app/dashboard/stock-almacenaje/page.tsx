@@ -142,7 +142,7 @@ const KPICard = ({
 };
 
 export default function StockAlmacenajePage() {
-  console.log('StockAlmacenajePage mounted');
+
   
   const [data, setData] = useState<StockAlmacenajeData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -170,21 +170,21 @@ export default function StockAlmacenajePage() {
         }
         
         const url = `/api/stock-almacenaje?${params}`;
-        console.log('Requesting URL:', url);
+
         
         const response = await fetch(url);
-        console.log('Response status:', response.status);
+
         
         if (!response.ok) {
-          console.error('Response not OK:', response.status, response.statusText);
+
           throw new Error(`Error del backend: ${response.status}`);
         }
 
         const result = await response.json();
-        console.log('API Response:', result);
+
         setData(result);
       } catch (error) {
-        console.error('Error fetching stock almacenaje data:', error);
+
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);
@@ -195,7 +195,7 @@ export default function StockAlmacenajePage() {
 
   // Cargar datos al montar el componente
   useEffect(() => {
-    console.log('useEffect triggered, calling fetchStockAlmacenajeData');
+
     fetchStockAlmacenajeData();
   }, [fetchStockAlmacenajeData]);
 

@@ -361,7 +361,7 @@ export default function StockPage() {
         }
         
         const url = `/api/stock?${params}`;
-        console.log('Requesting URL:', url);
+
         
         const response = await fetch(url);
         
@@ -372,7 +372,7 @@ export default function StockPage() {
         const result = await response.json();
         setData(result.data);
       } catch (error) {
-        console.error('Error fetching stock data:', error);
+
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);

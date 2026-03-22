@@ -14,6 +14,26 @@ const app = Fastify({
   logger: true,
 });
 
+app.setErrorHandler((error, request, reply) => {
+  request.log.error({
+    endpoint: request.url,
+    method: request.method,
+    error: error.message,
+    statusCode: error.statusCode ?? 500,
+  });
+  const statusCode = error.statusCode ?? 500;
+  reply.status(statusCode).send({
+    ok: false,
+    error: {
+      code: statusCode === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
+      message:
+        statusCode < 500
+          ? error.message
+          : "An unexpected error occurred",
+    },
+  });
+});
+
 const start = async (): Promise<void> => {
   try {
     await app.register(healthRoute);
