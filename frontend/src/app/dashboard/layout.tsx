@@ -12,6 +12,7 @@ const ALL_NAVIGATION = [
   { key: "expediciones",    name: "Expediciones / Cargas",  href: "/dashboard/expediciones" },
   { key: "stock-almacenaje",name: "Stock & Almacenaje",     href: "/dashboard/stock-almacenaje" },
   { key: "stock",           name: "Inventario",             href: "/dashboard/stock" },
+  { key: "slotting",        name: "Optimización Slotting",  href: "/dashboard/slotting" },
 ] as const;
 
 const navigation = ALL_NAVIGATION.filter((item) =>
