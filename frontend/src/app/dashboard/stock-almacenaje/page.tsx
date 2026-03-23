@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // CSS for animations and custom chart styles
@@ -114,30 +115,25 @@ const KPICard = ({
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: styles }} />
-      <div className={`${colorClasses[color as keyof typeof colorClasses]} border rounded-lg p-6 relative group`}>
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="relative">
-          <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full cursor-help"></div>
-          {tooltip && (
-            <div className="absolute right-0 top-5 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-              {tooltip}
-            </div>
-          )}
+      <div className={`${colorClasses[color as keyof typeof colorClasses]} border rounded-lg p-6 relative`}>
+        {tooltip && (
+          <div className="absolute top-2 right-2">
+            <InfoTooltip content={tooltip} />
+          </div>
+        )}
+        <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+          {title}
         </div>
-      </div>
-      <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-        {title}
-      </div>
-      <div className={`text-2xl font-bold ${textClasses[color as keyof typeof textClasses]} mb-1`}>
-        {value}
-      </div>
-      {subtitle && (
-        <div className={`text-xs ${textClasses[color as keyof typeof textClasses]} opacity-75`}>
-          {subtitle}
+        <div className={`text-2xl font-bold ${textClasses[color as keyof typeof textClasses]} mb-1`}>
+          {value}
         </div>
-      )}
-    </div>
-  </>
+        {subtitle && (
+          <div className={`text-xs ${textClasses[color as keyof typeof textClasses]} opacity-75`}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 

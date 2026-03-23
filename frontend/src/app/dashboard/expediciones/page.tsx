@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea, ReferenceLine, ScatterChart, Scatter } from "recharts";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -934,16 +935,9 @@ export default function ExpedicionesPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {kpiCards.map((kpi, index) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="relative">
-                      <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                        <span className="text-white text-xs">?</span>
-                      </div>
-                      <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {kpi.tooltip}
-                      </div>
-                    </div>
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+                  <div className="absolute top-2 right-2">
+                    <InfoTooltip content={kpi.tooltip} />
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
@@ -982,16 +976,9 @@ export default function ExpedicionesPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               {coordinacionKPIs.map((kpi, index) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="relative">
-                      <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                        <span className="text-white text-xs">?</span>
-                      </div>
-                      <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {kpi.tooltip}
-                      </div>
-                    </div>
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+                  <div className="absolute top-2 right-2">
+                    <InfoTooltip content={kpi.tooltip} />
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
@@ -1023,20 +1010,9 @@ export default function ExpedicionesPage() {
 
           {/* Gráfico Scatter - Diagnóstico: Duración vs Tiempo Muerto */}
           {scatterAnalysis && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group mb-8">
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="relative">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                    <span className="text-white text-xs">?</span>
-                  </div>
-                  <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Cada punto representa un camión individual. Los cuadrantes ayudan a identificar el tipo de problema: 
-                    - Arriba-Izquierda: Coordinación (tiempo muerto alto)
-                    - Abajo-Derecha: Carga (duración alta) 
-                    - Arriba-Derecha: Crisis (ambos problemas)
-                    - Abajo-Izquierda: Óptimo (sin problemas)
-                  </div>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative mb-8">
+              <div className="absolute top-2 right-2">
+                <InfoTooltip content="Cada punto representa un camión individual. Los cuadrantes ayudan a identificar el tipo de problema: - Arriba-Izquierda: Coordinación (tiempo muerto alto) - Abajo-Derecha: Carga (duración alta) - Arriba-Derecha: Crisis (ambos problemas) - Abajo-Izquierda: Óptimo (sin problemas)" />
               </div>
               
               {/* Resumen por cuadrantes */}
@@ -1294,16 +1270,9 @@ export default function ExpedicionesPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {eficienciaKPIs.map((kpi, index) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="relative">
-                      <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                        <span className="text-white text-xs">?</span>
-                      </div>
-                      <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {kpi.tooltip}
-                      </div>
-                    </div>
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+                  <div className="absolute top-2 right-2">
+                    <InfoTooltip content={kpi.tooltip} />
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
@@ -1314,7 +1283,7 @@ export default function ExpedicionesPage() {
                           kpi.delta < 0 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
                           'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                         }`}>
-                          {kpi.delta > 0 ? '↑' : kpi.delta < 0 ? '↓' : '→'} 
+                          {kpi.delta > 0 ? '↑' : kpi.delta < 0 ? '↓' : '→'}
                           {Math.abs(kpi.delta).toFixed(1)}%
                         </span>
                       )}
@@ -1338,16 +1307,9 @@ export default function ExpedicionesPage() {
 
       {/* Contexto 10 meses */}
       {benchmarkData && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 animate-fade-in relative group">
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="relative">
-              <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                <span className="text-white text-xs">?</span>
-              </div>
-              <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                Contexto histórico de últimos 10 meses. Muestra promedios, P95 y tendencias para comparar el período actual contra el comportamiento histórico.
-              </div>
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 animate-fade-in relative">
+          <div className="absolute top-2 right-2">
+            <InfoTooltip content="Contexto histórico de últimos 10 meses. Muestra promedios, P95 y tendencias para comparar el período actual contra el comportamiento histórico." />
           </div>
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -1440,16 +1402,9 @@ export default function ExpedicionesPage() {
         <>
           <div className="grid grid-cols-1 gap-8 mb-8">
             {/* Line Chart - Duración y Ocupación por Día */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="relative">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                    <span className="text-white text-xs">?</span>
-                  </div>
-                  <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Evolución diaria de duración promedio de carga (minutos) y ocupación de contenedores (%). Muestra optimización de espacio en contenedores día a día.
-                  </div>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+              <div className="absolute top-2 right-2">
+                <InfoTooltip content="Evolución diaria de duración promedio de carga (minutos) y ocupación de contenedores (%). Muestra optimización de espacio en contenedores día a día." />
               </div>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -1526,16 +1481,9 @@ export default function ExpedicionesPage() {
             </div>
             
             {/* Gráfico Duración vs Tiempo Muerto por Día */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="relative">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                    <span className="text-white text-xs">?</span>
-                  </div>
-                  <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Comparación entre duración de carga y tiempo muerto por día. Permite detectar divergencias entre eficiencia de carga y coordinación operativa.
-                  </div>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+              <div className="absolute top-2 right-2">
+                <InfoTooltip content="Comparación entre duración de carga y tiempo muerto por día. Permite detectar divergencias entre eficiencia de carga y coordinación operativa." />
               </div>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -1613,16 +1561,9 @@ export default function ExpedicionesPage() {
 
           <div className="grid grid-cols-1 gap-8 mb-8">
             {/* Top Matrículas - Bar Chart */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="relative">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                    <span className="text-white text-xs">?</span>
-                  </div>
-                  <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Top 10 matrículas con mayor volumen de ULs transportadas. Ordenado por SUM(uls) DESC. Incluye AVG() de duración y COUNT() de viajes.
-                  </div>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+              <div className="absolute top-2 right-2">
+                <InfoTooltip content="Top 10 matrículas con mayor volumen de ULs transportadas. Ordenado por SUM(uls) DESC. Incluye AVG() de duración y COUNT() de viajes." />
               </div>
               <div className="mb-4">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -1651,16 +1592,9 @@ export default function ExpedicionesPage() {
             </div>
 
             {/* Top 10 Camiones con Mayor Tiempo Muerto - Bar Chart Horizontal */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative group">
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="relative">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center cursor-help">
-                    <span className="text-white text-xs">?</span>
-                  </div>
-                  <div className="absolute right-0 top-5 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Top 10 camiones con mayor tiempo muerto en el período filtrado. Ordenado por tiempo_muerto DESC. Excluye valores nulos, negativos y outliers &gt; 720 min.
-                  </div>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
+              <div className="absolute top-2 right-2">
+                <InfoTooltip content="Top 10 camiones con mayor tiempo muerto en el período filtrado. Ordenado por tiempo_muerto DESC. Excluye valores nulos, negativos y outliers > 720 min." />
               </div>
               <div className="mb-4">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
