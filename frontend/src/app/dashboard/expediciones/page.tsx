@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea, ReferenceLine, ScatterChart, Scatter } from "recharts";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { clientName } from "@/lib/env";
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -589,7 +590,7 @@ export default function ExpedicionesPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Expediciones / Cargas | Macromercado
+              Expediciones / Cargas | {clientName}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">Panel de control de despachos y cargas de camiones</p>
             {data && (

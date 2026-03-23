@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from "recharts";
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { clientName } from "@/lib/env";
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -289,7 +290,7 @@ export default function FulfillmentPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Fulfillment | Macromercado
+              Fulfillment | {clientName}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">Panel de control de cumplimiento de pedidos</p>
             {data && (
@@ -582,9 +583,12 @@ export default function FulfillmentPage() {
       {benchmarkData && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 animate-fade-in">
           <div className="mb-4">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Contexto Histórico (10 meses)
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Contexto Histórico (10 meses)
+              </h2>
+              <InfoTooltip content="Comparación del Fill Rate actual contra el histórico de los últimos 10 meses. La brecha vs promedio indica si el período consultado está por encima o debajo del rendimiento habitual." />
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
@@ -831,16 +835,16 @@ export default function FulfillmentPage() {
                       const data = payload[0].payload;
                       const percentage = ((data.shortage / data.totalFaltantes) * 100).toFixed(1);
                       return (
-                        <div className="bg-gray-900 p-3 border border-gray-700 rounded-lg shadow-lg">
-                          <p className="text-sm font-semibold text-gray-100 mb-2">{data.originalName}</p>
+                        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{data.originalName}</p>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between gap-4">
-                              <span className="text-gray-400">Faltantes:</span>
-                              <span className="font-medium text-red-400">{formatNumber(data.shortage)}</span>
+                              <span className="text-gray-600 dark:text-gray-400">Faltantes:</span>
+                              <span className="font-medium text-red-600 dark:text-red-400">{formatNumber(data.shortage)}</span>
                             </div>
                             <div className="flex justify-between gap-4">
-                              <span className="text-gray-400">% del total:</span>
-                              <span className="font-medium text-gray-100">{percentage}%</span>
+                              <span className="text-gray-600 dark:text-gray-400">% del total:</span>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">{percentage}%</span>
                             </div>
                           </div>
                         </div>
@@ -867,9 +871,12 @@ export default function FulfillmentPage() {
       {benchmarkData && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 animate-fade-in">
           <div className="mb-4">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Evolución Mensual - Nivel de Servicio
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Evolución Mensual - Nivel de Servicio
+              </h2>
+              <InfoTooltip content="Tendencia mensual del Fill Rate (% de unidades entregadas sobre solicitadas). Permite identificar meses problemáticos y comparar la evolución del nivel de servicio a lo largo del tiempo." />
+            </div>
           </div>
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={benchmarkData.datosMensuales}>

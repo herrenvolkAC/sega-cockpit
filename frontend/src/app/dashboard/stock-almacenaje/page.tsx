@@ -432,9 +432,12 @@ export default function StockAlmacenajePage() {
               {/* Pallets por Sector */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
                 <div className="mb-4">
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                    Pallets por Sector
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                      Pallets por Sector
+                    </h2>
+                    <InfoTooltip content="Distribución de pallets almacenados por sector del depósito. Permite identificar zonas de alta concentración y balancear la ocupación del almacén." />
+                  </div>
                 </div>
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={filteredPalletsPorSector} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
@@ -464,9 +467,12 @@ export default function StockAlmacenajePage() {
               {/* Pallets por Sección */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
                 <div className="mb-4">
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                    Pallets por Sección
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                      Pallets por Sección
+                    </h2>
+                    <InfoTooltip content="Cantidad de pallets por sección o pasillo del depósito. Útil para detectar secciones saturadas y planificar reubicaciones de mercadería." />
+                  </div>
                 </div>
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={filteredPalletsPorSeccion} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
@@ -503,9 +509,12 @@ export default function StockAlmacenajePage() {
             {data.graficos.contenedoresPorCanal && data.graficos.contenedoresPorCanal.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
                 <div className="mb-4">
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                    Distribución de Contenedores en Canales
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                      Distribución de Contenedores en Canales
+                    </h2>
+                    <InfoTooltip content="Porcentaje de contenedores asignados a cada canal de despacho (supermercados, mayoristas, etc.). Permite visualizar el peso operativo de cada canal sobre el stock almacenado." />
+                  </div>
                 </div>
                 <div className="relative">
                   <ResponsiveContainer width="100%" height={300}>

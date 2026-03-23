@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Area, BarChart } from "recharts";
 import { DarkChartThemeProvider, darkChartConfig } from '@/components/dashboard/DarkChartTheme';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { clientName } from "@/lib/env";
 
 // Tipos para los datos de recepciones
 type BenchmarkStats = {
@@ -258,7 +259,7 @@ setData(result.data);
       <main className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-          Recepciones - Macromercado
+          Recepciones - {clientName}
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Panel de control de recepciones de mercancía

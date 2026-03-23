@@ -9,6 +9,9 @@ export const env = {
   fetchTimeoutMs: toNumber(process.env.NEXT_PUBLIC_FETCH_TIMEOUT_MS, 4000),
 };
 
+export const clientName: string =
+  process.env.NEXT_PUBLIC_CLIENT_NAME ?? "SEGA Cockpit";
+
 export const getBackendBaseUrl = (): string => {
   const v = process.env.BACKEND_BASE_URL;
   if (!v) {

@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { clientName } from "@/lib/env";
 import ExpandableGrid from '@/components/dashboard/ExpandableGrid';
 import { DarkChartThemeProvider, darkChartConfig } from '@/components/dashboard/DarkChartTheme';
 import { KpiCardWithTooltip } from '@/components/dashboard/KpiCardWithTooltip';
 import { ChartReferenceLabel } from '@/components/dashboard/ChartReferenceLabel';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area } from "recharts";
 
 // CSS for animations only (chart styles moved to DarkChartTheme)
@@ -179,7 +181,7 @@ export default function ProductivityPage() {
         <main className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-          Productividad - {operacion === 'PICKING' ? 'Picking' : operacion === 'CROSSDOCKING' ? 'Crossdocking' : operacion === 'EXTRACCION' ? 'Extracción' : operacion === 'REPOSICION' ? 'Reposición' : operacion === 'ALMACENAJE' ? 'Almacenaje' : 'Recepción'} - Macromercado
+          Productividad - {operacion === 'PICKING' ? 'Picking' : operacion === 'CROSSDOCKING' ? 'Crossdocking' : operacion === 'EXTRACCION' ? 'Extracción' : operacion === 'REPOSICION' ? 'Reposición' : operacion === 'ALMACENAJE' ? 'Almacenaje' : 'Recepción'} - {clientName}
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Panel de control de productividad de operaciones {operacion}
@@ -335,9 +337,12 @@ export default function ProductivityPage() {
       {data && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8 relative">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Productividad Media Diaria
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Productividad Media Diaria
+              </h2>
+              <InfoTooltip content={`Promedio de Unidades por Hora (U/H) por día para la operación ${operacion}. La línea roja punteada indica el promedio del período. La banda sombreada representa el rango normal (P25-P75).`} />
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Unidades por hora (promedio del día)
             </p>
@@ -453,9 +458,12 @@ export default function ProductivityPage() {
       {/* Resumen de Benchmark Estadístico */}
       {data && data.benchmark && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            Análisis Estadístico del Período
-          </h3>
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Análisis Estadístico del Período
+            </h3>
+            <InfoTooltip content="Distribución estadística de la productividad del período. P25-P75 es el rango donde se ubica el 50% central de los operarios (rango normal). P10-P90 cubre el 80% y excluye los extremos. La mediana es el valor que divide en partes iguales." />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Rango Normal (P25-P75)</p>
@@ -492,9 +500,12 @@ export default function ProductivityPage() {
       {data && data.perOperator && data.perOperator.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Top 10 Operarios por Productividad
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Top 10 Operarios por Productividad
+              </h2>
+              <InfoTooltip content="Los 10 operarios con mayor productividad (U/H) en el período. Se excluyen operarios con muestra baja (pocos registros) para evitar distorsiones estadísticas." />
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Unidades por hora (promedio del período)
             </p>
