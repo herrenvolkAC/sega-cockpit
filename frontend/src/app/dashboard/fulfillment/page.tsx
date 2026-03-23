@@ -290,6 +290,7 @@ export default function FulfillmentPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               Fulfillment | Macromercado
             </h1>
+            <p className="text-gray-600 dark:text-gray-400">Panel de control de cumplimiento de pedidos</p>
             {data && (
               <div className="text-base text-gray-600 dark:text-gray-400 mt-1">
                 {(() => {
@@ -823,22 +824,23 @@ export default function FulfillmentPage() {
                   tick={{ fontSize: 11 }} 
                   tickFormatter={(value) => formatNumber(Number(value))}
                 />
-                <Tooltip 
+                <Tooltip
+                  cursor={false}
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       const data = payload[0].payload;
                       const percentage = ((data.shortage / data.totalFaltantes) * 100).toFixed(1);
                       return (
-                        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{data.originalName}</p>
+                        <div className="bg-gray-900 p-3 border border-gray-700 rounded-lg shadow-lg">
+                          <p className="text-sm font-semibold text-gray-100 mb-2">{data.originalName}</p>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between gap-4">
-                              <span className="text-gray-600 dark:text-gray-400">Faltantes:</span>
-                              <span className="font-medium text-red-700 dark:text-red-400">{formatNumber(data.shortage)}</span>
+                              <span className="text-gray-400">Faltantes:</span>
+                              <span className="font-medium text-red-400">{formatNumber(data.shortage)}</span>
                             </div>
                             <div className="flex justify-between gap-4">
-                              <span className="text-gray-600 dark:text-gray-400">% del total:</span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">{percentage}%</span>
+                              <span className="text-gray-400">% del total:</span>
+                              <span className="font-medium text-gray-100">{percentage}%</span>
                             </div>
                           </div>
                         </div>

@@ -595,6 +595,7 @@ export default function ExpedicionesPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               Expediciones / Cargas | Macromercado
             </h1>
+            <p className="text-gray-600 dark:text-gray-400">Panel de control de despachos y cargas de camiones</p>
             {data && (
               <div className="text-base text-gray-600 dark:text-gray-400 mt-1">
                 {(() => {
@@ -1649,18 +1650,19 @@ export default function ExpedicionesPage() {
                       tick={{ fontSize: 11, fill: '#9ca3af' }} 
                       tickFormatter={(value) => `${value} min`}
                     />
-                    <Tooltip 
+                    <Tooltip
+                      cursor={false}
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
-                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                            <div className="bg-gray-900 p-3 border border-gray-700 rounded-lg shadow-lg">
+                              <div className="text-sm font-medium text-gray-100 mb-1">
                                 {data.name}
                               </div>
                               <div className="flex justify-between gap-4">
-                                <span className="text-gray-600 dark:text-gray-400">Tiempo Muerto:</span>
-                                <span className="font-medium text-gray-900 dark:text-gray-100">{data.tiempo_muerto} min</span>
+                                <span className="text-gray-400">Tiempo Muerto:</span>
+                                <span className="font-medium text-gray-100">{data.tiempo_muerto} min</span>
                               </div>
                             </div>
                           );

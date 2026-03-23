@@ -177,7 +177,8 @@ const Top5StockChart = ({ data }: { data: any[] }) => {
             tick={{ fontSize: 11 }} 
             tickFormatter={(value) => formatNumber(Number(value))}
           />
-          <Tooltip 
+          <Tooltip
+            cursor={false}
             formatter={(value: any, name: any) => {
               if (name === 'stockTotal') {
                 return [formatNumber(Number(value)), 'Stock Total'];
@@ -542,7 +543,8 @@ export default function StockPage() {
                   tick={{ fontSize: 11 }}
                 />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatNumber(Number(value))} />
-                <Tooltip 
+                <Tooltip
+                  cursor={false}
                   formatter={(value: any, name: any) => {
                     if (name === 'cantidadSkus') {
                       return [formatNumber(Number(value)), 'Cantidad SKUs'];

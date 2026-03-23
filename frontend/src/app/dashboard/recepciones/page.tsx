@@ -950,7 +950,8 @@ setData(result.data);
                   tick={{ fontSize: 11 }} 
                   tickFormatter={(value) => formatNumber(Number(value))}
                 />
-                <Tooltip 
+                <Tooltip
+                  cursor={false}
                   formatter={(value: any, name: any) => {
                     if (name === 'uls') {
                       return [formatNumber(Number(value)), 'ULs'];

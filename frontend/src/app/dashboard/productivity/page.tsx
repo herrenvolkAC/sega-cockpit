@@ -536,12 +536,13 @@ export default function ProductivityPage() {
                 tick={{ fontSize: 11 }} 
                 tickFormatter={(value) => `${value}`}
               />
-              <Tooltip 
+              <Tooltip
+                cursor={false}
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
                     return (
-                      <div className="bg-gray-900 dark:bg-gray-800 p-3 border border-gray-600 dark:border-gray-700 rounded-lg shadow-lg">
+                      <div className="bg-gray-900 p-3 border border-gray-700 rounded-lg shadow-lg">
                         <p className="text-sm font-semibold text-gray-100 dark:text-gray-100 mb-2">
                           {data.operario}
                         </p>
