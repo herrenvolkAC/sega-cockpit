@@ -151,18 +151,8 @@ export default function ProductivityPage() {
   }, [fechaInicio, fechaFin, operacion]);
 
   useEffect(() => {
-
-    // Establecer fechas por defecto (últimos 7 días)
-    const today = new Date();
-    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const inicioStr = today.toISOString().split('T')[0];
-    const finStr = sevenDaysAgo.toISOString().split('T')[0];
-    
-
-    
-    setFechaFin(inicioStr);
-    setFechaInicio(finStr);
+    setFechaInicio('2025-01-01');
+    setFechaFin('2025-02-01');
   }, []);
 
   const handleLimpiar = () => {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from "recharts";
+import { InfoTooltip } from '@/components/InfoTooltip';
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -200,14 +201,10 @@ export default function FulfillmentPage() {
     [fetchFulfillmentData]
   );
 
-  // Cargar datos iniciales (últimos 90 días por defecto)
+  // Cargar datos iniciales
   useEffect(() => {
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    const today = new Date();
-    
-    setFechaInicio(ninetyDaysAgo.toISOString().split('T')[0]);
-    setFechaFin(today.toISOString().split('T')[0]);
+    setFechaInicio('2025-01-01');
+    setFechaFin('2025-02-01');
   }, []);
 
   // Cargar datos de benchmark cuando cambian las fechas
@@ -242,26 +239,30 @@ export default function FulfillmentPage() {
         title: "Total Pedidos",
         value: formatNumber(data.totalPedidos),
         subtitle: "Pedidos procesados",
-        color: "blue" as const
+        color: "blue" as const,
+        tooltip: "Cantidad de pedidos procesados en el período. Un pedido puede contener múltiples SKUs con cantidades solicitadas."
       },
       {
         title: "Total Solicitado",
         value: formatNumber(data.totalSolicitado),
         subtitle: "Unidades solicitadas",
-        color: "neutral" as const
+        color: "neutral" as const,
+        tooltip: "Suma total de unidades pedidas por los clientes en el período. Representa la demanda real a satisfacer."
       },
       {
         title: "Total Faltantes",
         value: formatNumber(data.totalFaltantes),
         subtitle: "Unidades no entregadas",
-        color: "red" as const
+        color: "red" as const,
+        tooltip: "Unidades que no pudieron ser entregadas por falta de stock disponible al momento del armado del pedido (shortage). A reducir al mínimo posible."
       },
       {
         title: "Tasa Satisfacción",
         value: `${data.tasaSatisfaccion.toFixed(1)}%`,
         subtitle: "Fill Rate (Unidades)",
         color: data.tasaSatisfaccion >= 95 ? "green" as const :
-               data.tasaSatisfaccion >= 90 ? "yellow" as const : "red" as const
+               data.tasaSatisfaccion >= 90 ? "yellow" as const : "red" as const,
+        tooltip: "Fill Rate = (Unidades Entregadas / Unidades Solicitadas) × 100. Verde ≥ 95%, Amarillo ≥ 90%, Rojo < 90%."
       }
     ];
   }, [data]);
@@ -557,7 +558,8 @@ export default function FulfillmentPage() {
       {data && data.totalPedidos > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {kpiCards.map((kpi: any, index: number) => (
-            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-7 border border-gray-200 dark:border-gray-700 animate-fade-in">
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-7 border border-gray-200 dark:border-gray-700 animate-fade-in relative">
+              {kpi.tooltip && <div className="absolute top-2 right-2"><InfoTooltip content={kpi.tooltip} /></div>}
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{kpi.title}</p>
                 <p className={`text-3xl font-semibold mb-1 ${
@@ -785,43 +787,41 @@ export default function FulfillmentPage() {
 
           {/* Bar Chart - Top 10 Productos */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Top 10 Productos con más Faltantes
               </h2>
-              {data.productosConShortage.length > 0 && (
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Los 3 principales SKUs concentran el {((data.productosConShortage.slice(0, 3).reduce((sum, p) => sum + p.shortage, 0) / data.totalFaltantes * 100).toFixed(1))}% de los faltantes del período
-                </div>
-              )}
+              <InfoTooltip
+                position="right"
+                content="Muestra los 10 SKUs con mayor cantidad de unidades faltantes en el período. Los primeros concentran la mayor parte del shortage total — atacarlos primero maximiza el impacto en el Fill Rate."
+              />
             </div>
-            <ResponsiveContainer width="100%" height={450}>
-              <BarChart 
-                data={data.productosConShortage.slice(0, 10).map((item, index) => {
-                  // Truncado para nombres largos
+            {data.productosConShortage.length > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Los 3 principales SKUs concentran el {((data.productosConShortage.slice(0, 3).reduce((sum, p) => sum + p.shortage, 0) / data.totalFaltantes * 100).toFixed(1))}% de los faltantes del período
+              </div>
+            )}
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart
+                data={data.productosConShortage.slice(0, 10).map((item) => {
                   const originalName = item.name || '';
-                  const displayName = originalName.length > 20 ? 
-                    originalName.substring(0, 17) + '...' : 
+                  const displayName = originalName.length > 20 ?
+                    originalName.substring(0, 17) + '...' :
                     originalName;
-                  
-                  return {
-                    ...item,
-                    displayName: displayName,
-                    originalName: originalName // Guardar para tooltip
-                  };
+                  return { ...item, displayName, originalName };
                 })}
-                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                margin={{ top: 10, right: 20, left: 20, bottom: 80 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.3} horizontal={true} vertical={false} />
-                <XAxis 
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} vertical={false} />
+                <XAxis
                   dataKey="displayName"
-                  tick={{ fontSize: 9 }}
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
                   angle={-45}
                   textAnchor="end"
-                  height={60}
+                  height={80}
                 />
-                <YAxis 
-                  tick={{ fontSize: 11 }} 
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
                   tickFormatter={(value) => formatNumber(Number(value))}
                 />
                 <Tooltip

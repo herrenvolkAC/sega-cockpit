@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Area, BarChart } from "recharts";
 import { DarkChartThemeProvider, darkChartConfig } from '@/components/dashboard/DarkChartTheme';
+import { InfoTooltip } from '@/components/InfoTooltip';
 
 // Tipos para los datos de recepciones
 type BenchmarkStats = {
@@ -149,14 +150,10 @@ setData(result.data);
     [fechaInicio, fechaFin, proveedor, sku]
   );
 
-  // Cargar datos iniciales (últimos 30 días por defecto)
+  // Cargar datos iniciales
   useEffect(() => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const today = new Date();
-    
-    setFechaInicio(thirtyDaysAgo.toISOString().split('T')[0]);
-    setFechaFin(today.toISOString().split('T')[0]);
+    setFechaInicio('2025-01-01');
+    setFechaFin('2025-02-01');
   }, []);
 
   const formatNumber = (num: number) => {
@@ -174,13 +171,15 @@ setData(result.data);
           title: "Total ULs",
           value: formatNumber(data.kpis.totalUls),
           icon: "🏗️",
-          color: "blue" as const
+          color: "blue" as const,
+          tooltip: "Total de Unidades Logísticas (pallets, cajas, bultos) recibidas en el período. Refleja el volumen físico procesado en el sector de recepción."
         },
         {
           title: "Total Cajas",
           value: formatNumber(data.kpis.totalCajas),
           icon: "📦",
-          color: "green" as const
+          color: "green" as const,
+          tooltip: "Total de cajas recibidas como parte de las unidades logísticas del período. Permite medir el volumen desagregado por tipo de unidad."
         }
       ],
       // 🟡 Bloque 2 - Actividad
@@ -189,13 +188,15 @@ setData(result.data);
           title: "Días con Recepción",
           value: formatNumber(data.kpis.totalDias),
           icon: "📅",
-          color: "orange" as const
+          color: "orange" as const,
+          tooltip: "Cantidad de días del período que tuvieron al menos una recepción registrada. Indica el nivel de actividad operativa del área."
         },
         {
           title: "Sectores Activos",
           value: formatNumber(data.kpis.totalSecciones),
           icon: "🏭",
-          color: "yellow" as const
+          color: "yellow" as const,
+          tooltip: "Cantidad de sectores o ubicaciones del almacén que recibieron mercadería en el período."
         }
       ],
       // 🟣 Bloque 3 - Eficiencia
@@ -205,14 +206,16 @@ setData(result.data);
           value: `${data.kpis.tiempoPromedioRecepcion.toFixed(1)}h`,
           subtitle: "Promedio diario",
           icon: "⏱️",
-          color: "purple" as const
+          color: "purple" as const,
+          tooltip: "Tiempo promedio en horas que tarda el proceso de recepción de una UL, desde el ingreso hasta su ubicación. Calculado como promedio de los tiempos diarios del período."
         },
         {
           title: "Tiempo Recepción Período (h)",
           value: `${data.kpis_periodo.recepcion_avg_h_ponderado.toFixed(1)}h`,
           subtitle: `Basado en ${formatNumber(data.kpis_periodo.recepcion_eventos)} eventos`,
           icon: "⚡",
-          color: "violet" as const
+          color: "violet" as const,
+          tooltip: "Tiempo promedio ponderado de recepción calculado sobre todos los eventos individuales del período completo. Más preciso que el promedio diario para períodos con volumen irregular."
         },
         {
           title: "Tiempo Promedio Estadía Camión (h)",
@@ -222,14 +225,16 @@ setData(result.data);
           })(),
           subtitle: useRobustBenchmarks ? "Benchmark robusto" : "Con outliers",
           icon: "🚛",
-          color: "indigo" as const
+          color: "indigo" as const,
+          tooltip: "Tiempo promedio que un camión permanece en las instalaciones desde su ingreso hasta su retiro. Valor de referencia para planificación de muelles y turnos de descarga."
         },
         {
           title: "Estadía Camión Período (h)",
           value: `${data.kpis_periodo.camion_avg_h_ponderado.toFixed(1)}h`,
           subtitle: `Basado en ${formatNumber(data.kpis_periodo.camion_eventos)} eventos`,
           icon: "⏰",
-          color: "blue" as const
+          color: "blue" as const,
+          tooltip: "Tiempo promedio ponderado de estadía de camiones sobre todos los eventos del período. Incluye tiempo de espera, descarga y documentación."
         }
       ]
     };
@@ -403,7 +408,8 @@ setData(result.data);
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {kpiCards.volumen.map((kpi: any, index: number) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 relative">
+                  {kpi.tooltip && <div className="absolute top-2 right-2"><InfoTooltip content={kpi.tooltip} /></div>}
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">{kpi.title}</p>
@@ -427,7 +433,8 @@ setData(result.data);
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {kpiCards.actividad.map((kpi: any, index: number) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 relative">
+                  {kpi.tooltip && <div className="absolute top-2 right-2"><InfoTooltip content={kpi.tooltip} /></div>}
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">{kpi.title}</p>
@@ -451,7 +458,8 @@ setData(result.data);
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {kpiCards.eficiencia.map((kpi: any, index: number) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 relative">
+                  {kpi.tooltip && <div className="absolute top-2 right-2"><InfoTooltip content={kpi.tooltip} /></div>}
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">{kpi.title}</p>

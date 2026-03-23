@@ -284,15 +284,11 @@ export default function ExpedicionesPage() {
     [fetchExpedicionesData]
   );
 
-  // No cargar datos automáticamente - el usuario debe seleccionar fechas explícitamente
-  // useEffect(() => {
-  //   const sixtyDaysAgo = new Date();
-  //   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-  //   const today = new Date();
-  //   
-  //   setFechaInicio(sixtyDaysAgo.toISOString().split('T')[0]);
-  //   setFechaFin(today.toISOString().split('T')[0]);
-  // }, []);
+  // Cargar datos iniciales
+  useEffect(() => {
+    setFechaInicio('2025-01-01');
+    setFechaFin('2025-02-01');
+  }, []);
 
   // Cargar datos de benchmark cuando cambian las fechas
   useEffect(() => {
