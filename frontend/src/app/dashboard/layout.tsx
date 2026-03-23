@@ -3,17 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { clientConfig } from "@/config/client";
 
-const navigation = [
-  { name: "FullFillment", href: "/dashboard/fulfillment" },
-  { name: "Productividad", href: "/dashboard/productivity" },
-  { name: "Recepciones", href: "/dashboard/recepciones" },
-  { name: "Expediciones / Cargas", href: "/dashboard/expediciones" },
-  { name: "Stock & Almacenaje", href: "/dashboard/stock-almacenaje" },
-  { name: "Inventario", href: "/dashboard/stock" },
-  { name: "Ventas", href: "/dashboard/sales" },
-  { name: "Calidad", href: "/dashboard/quality" },
-];
+const ALL_NAVIGATION = [
+  { key: "fulfillment",     name: "FullFillment",          href: "/dashboard/fulfillment" },
+  { key: "productivity",    name: "Productividad",          href: "/dashboard/productivity" },
+  { key: "recepciones",     name: "Recepciones",            href: "/dashboard/recepciones" },
+  { key: "expediciones",    name: "Expediciones / Cargas",  href: "/dashboard/expediciones" },
+  { key: "stock-almacenaje",name: "Stock & Almacenaje",     href: "/dashboard/stock-almacenaje" },
+  { key: "stock",           name: "Inventario",             href: "/dashboard/stock" },
+] as const;
+
+const navigation = ALL_NAVIGATION.filter((item) =>
+  clientConfig.enabledModules.has(item.key)
+);
 
 export default function DashboardLayout({
   children,
@@ -29,15 +32,15 @@ export default function DashboardLayout({
         <div className="h-full px-3 py-4 overflow-y-auto">
           <div className="mb-8">
             <h2 className="px-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Dashboards
+              {clientConfig.name}
             </h2>
           </div>
-          
+
           <ul className="space-y-2 font-medium">
             {navigation.map((item) => {
               const isActive = pathname === item.href;
               return (
-                <li key={item.name}>
+                <li key={item.key}>
                   <Link
                     href={item.href}
                     className={`flex items-center p-3 rounded-lg transition-colors ${
@@ -67,7 +70,7 @@ export default function DashboardLayout({
           <div className="px-6 py-4 flex items-center justify-between">
             <div className="flex-1">
               <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Sistema de Dashboards
+                {clientConfig.name}
               </h1>
             </div>
           </div>
