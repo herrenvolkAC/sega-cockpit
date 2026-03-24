@@ -599,14 +599,14 @@ export default function StockPage() {
                   radius={[4, 4, 0, 0]}
                 >
                   {distribucionFiltrada.map((entry, index) => {
-                    const rango = entry.rango as string;
-                    let color = '#3b82f6'; // azul default
-                    if (rango === '0 días')                                         color = '#6b7280'; // gris
-                    else if (rango.includes('1-7') || rango.startsWith('1–7'))     color = '#ef4444'; // rojo crítico
-                    else if (rango.includes('7-15') || rango.startsWith('7–15'))   color = '#f97316'; // naranja bajo
-                    else if (rango.includes('15-') || rango.startsWith('15–'))     color = '#22c55e'; // verde saludable
-                    else if (rango.includes('120-') || rango.startsWith('120–'))   color = '#eab308'; // amarillo alto
-                    else if (rango.includes('>180') || rango.includes('180+') || rango.startsWith('+180')) color = '#ea580c'; // naranja oscuro sobrestock
+                    const rango = String(entry.rango ?? '');
+                    let color = '#3b82f6';
+                    if (rango === '0 días' || rango === '0')                       color = '#6b7280';
+                    else if (/^1[\s–-]?7/.test(rango) || rango.includes('1-7'))   color = '#ef4444';
+                    else if (/^7[\s–-]?15/.test(rango) || rango.includes('7-15')) color = '#f97316';
+                    else if (/^15[\s–-]/.test(rango) || rango.includes('15-'))    color = '#22c55e';
+                    else if (/^120[\s–-]/.test(rango) || rango.includes('120-'))  color = '#eab308';
+                    else if (rango.includes('180') || rango.startsWith('>'))       color = '#ea580c';
                     return <Cell key={`cell-${index}`} fill={color} />;
                   })}
                 </Bar>
