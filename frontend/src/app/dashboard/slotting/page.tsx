@@ -134,12 +134,369 @@ const exportCSV = (rows: SlottingRow[]) => {
 };
 
 // ─────────────────────────────────────────────
+// Metodología (tab estático, sin datos)
+// ─────────────────────────────────────────────
+function MetodologiaTab() {
+  return (
+    <div className="max-w-4xl space-y-10 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+
+      {/* 1. Qué mide */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">¿Qué mide este tablero?</h2>
+        <p>
+          El tablero de <strong>Optimización de Slotting</strong> detecta productos cuyo <em>tipo de ubicación de almacenamiento</em> no
+          coincide con la forma en que realmente se los pickea. El objetivo es identificar oportunidades para mover productos
+          entre tipologías (BALDA ↔ RACK/PALLET) de manera que se reduzca el número de líneas de picking necesarias para
+          satisfacer la misma demanda.
+        </p>
+        <p className="mt-2">
+          Un producto mal posicionado genera más trabajo: un SKU de alta rotación en múltiplos de caja almacenado en balda
+          obliga a pickear varias veces lo que podría salir en un solo movimiento desde rack. A la inversa, un SKU unitario
+          en rack obliga al operario a moverse a una posición de gran altura o profundidad para buscar pocas unidades.
+        </p>
+      </section>
+
+      {/* 2. Tipología */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Paso 1 — Determinar la tipología actual</h2>
+        <p>
+          Para cada SKU se analizan todos los picks del período. La tipología actual se determina por <strong>volumen dominante</strong>:
+          el tipo de ubicación desde donde se pickeó la mayor cantidad de unidades gana como "tipología real" del producto.
+          Esto refleja la realidad operativa, independientemente de lo que diga el maestro de ubicaciones.
+        </p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-700">
+                <th className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold">Tipo de ubicación</th>
+                <th className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold">Grupo asignado</th>
+                <th className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold">¿Se evalúa re-slotting?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["Estantes%, Estantería%, Camara Carn. Estante", "BALDA", "Sí"],
+                ["Rack %, Racks %, Salon Rack %", "RACK/PALLET", "Sí"],
+                ["Mesa %", "MESA", "No (área especial)"],
+                ["Camara %", "CÁMARA", "No (área especial)"],
+                ["Serv.%", "SERVICIO", "No (área especial)"],
+                ["Salon %", "SALÓN", "No (área especial)"],
+              ].map(([tipo, grupo, evalua], i) => (
+                <tr key={i} className={i % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-800"}>
+                  <td className="border border-gray-200 dark:border-gray-600 px-3 py-2 font-mono text-xs">{tipo}</td>
+                  <td className="border border-gray-200 dark:border-gray-600 px-3 py-2 font-semibold">{grupo}</td>
+                  <td className="border border-gray-200 dark:border-gray-600 px-3 py-2">{evalua}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          Solo los productos en BALDA o RACK/PALLET son candidatos a sugerencia. Las áreas especiales (cámara, salón, servicio)
+          tienen condiciones operativas propias que no permiten comparación directa.
+        </p>
+      </section>
+
+      {/* 3. Métricas operativas */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Paso 2 — Calcular métricas operativas por SKU</h2>
+        <p>Para cada producto se calculan las siguientes métricas sobre el período analizado:</p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-700">
+                <th className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold">Métrica</th>
+                <th className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold">Cómo se calcula</th>
+                <th className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold">Qué indica</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["% Líneas Unitarias", "Líneas donde qty = 1 / total líneas", "Alto → picking muy fraccionado → candidato a BALDA"],
+                ["% Múltiplo de Caja", "Líneas donde qty es múltiplo exacto de la caja del SKU / total", "Alto → se mueve en cajas completas → candidato a RACK"],
+                ["% Múltiplo de Pallet", "Líneas donde qty es múltiplo exacto del pallet del SKU / total", "Alto → se mueve en pallets → candidato fuerte a RACK"],
+                ["Líneas / 1000 unidades", "Total líneas × 1000 / total unidades", "Mide fragmentación: más alto = más líneas por volumen movido"],
+                ["Promedio unidades / línea", "Total unidades / total líneas", "Bajo → unitario; alto → masivo"],
+                ["Días con actividad", "Días únicos con picks en el período", "Evita sugerencias basadas en picos de un solo día"],
+                ["% desde ubicación asignada", "Unidades desde ubicación del maestro / total unidades", "Calidad del dato: si es bajo, el maestro no representa la realidad"],
+              ].map(([metrica, calculo, indica], i) => (
+                <tr key={i} className={i % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-800"}>
+                  <td className="border border-gray-200 dark:border-gray-600 px-3 py-2 font-semibold">{metrica}</td>
+                  <td className="border border-gray-200 dark:border-gray-600 px-3 py-2 font-mono text-xs">{calculo}</td>
+                  <td className="border border-gray-200 dark:border-gray-600 px-3 py-2">{indica}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 4. Scores */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Paso 3 — Calcular los scores</h2>
+        <p>
+          Se calculan dos scores simultáneos para cada SKU. Cada score acumula evidencias a favor o en contra de cada tipología,
+          usando los pesos definidos a continuación:
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          {/* Score RACK */}
+          <div className="border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden">
+            <div className="bg-blue-50 dark:bg-blue-900/30 px-4 py-2 font-semibold text-blue-800 dark:text-blue-200">
+              Score hacia RACK/PALLET
+            </div>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-800">
+                  <th className="border-b border-gray-200 dark:border-gray-700 px-3 py-2 text-left">Factor</th>
+                  <th className="border-b border-gray-200 dark:border-gray-700 px-3 py-2 text-right">Peso</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">% múltiplo de pallet</td><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 text-right font-mono text-green-700 dark:text-green-400">+100</td></tr>
+                <tr className="bg-gray-50 dark:bg-gray-800"><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">% múltiplo de caja</td><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 text-right font-mono text-green-700 dark:text-green-400">+60</td></tr>
+                <tr><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">% líneas unitarias</td><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 text-right font-mono text-red-600 dark:text-red-400">-80</td></tr>
+                <tr className="bg-gray-50 dark:bg-gray-800"><td className="px-3 py-1.5">líneas / 1000 unidades</td><td className="px-3 py-1.5 text-right font-mono text-red-600 dark:text-red-400">-0.6</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Score BALDA */}
+          <div className="border border-orange-200 dark:border-orange-800 rounded-lg overflow-hidden">
+            <div className="bg-orange-50 dark:bg-orange-900/30 px-4 py-2 font-semibold text-orange-800 dark:text-orange-200">
+              Score hacia BALDA
+            </div>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-800">
+                  <th className="border-b border-gray-200 dark:border-gray-700 px-3 py-2 text-left">Factor</th>
+                  <th className="border-b border-gray-200 dark:border-gray-700 px-3 py-2 text-right">Peso</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">% líneas unitarias</td><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 text-right font-mono text-green-700 dark:text-green-400">+100</td></tr>
+                <tr className="bg-gray-50 dark:bg-gray-800"><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">líneas / 1000 unidades</td><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 text-right font-mono text-green-700 dark:text-green-400">+0.6</td></tr>
+                <tr><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">% múltiplo de caja</td><td className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 text-right font-mono text-red-600 dark:text-red-400">-60</td></tr>
+                <tr className="bg-gray-50 dark:bg-gray-800"><td className="px-3 py-1.5">% múltiplo de pallet</td><td className="px-3 py-1.5 text-right font-mono text-red-600 dark:text-red-400">-100</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-xs">
+          <strong>Umbral de sugerencia:</strong> se emite una sugerencia cuando el score hacia la tipología opuesta supera <strong>20 puntos</strong>.
+          Por ejemplo, un producto en BALDA con Score-RACK ≥ 20 recibe la sugerencia "BALDA → RACK/PALLET".
+        </div>
+      </section>
+
+      {/* 5. Ejemplos */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Ejemplos teóricos</h2>
+
+        {/* Ejemplo 1 */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-6">
+          <div className="bg-orange-50 dark:bg-orange-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <span className="font-semibold text-orange-800 dark:text-orange-300">Ejemplo A — Producto en RACK que debería ir a BALDA</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <p className="text-xs"><strong>Situación:</strong> "Aceite de oliva 500ml" está en una posición de rack (nivel alto). Se pickea 200 veces en el mes, casi siempre 1 o 2 unidades por línea. La caja trae 12 unidades y nunca se pickea en múltiplo de 12.</p>
+            <div className="overflow-x-auto">
+              <table className="text-xs border-collapse w-full">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-800">
+                    <th className="border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-left">Dato</th>
+                    <th className="border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["Tipología actual", "RACK/PALLET"],
+                    ["Líneas totales", "200"],
+                    ["Unidades totales", "320"],
+                    ["% líneas unitarias", "75% (150/200 líneas de 1 unidad)"],
+                    ["% múltiplo caja (12u)", "0% (nunca se pickea en múltiplos de 12)"],
+                    ["% múltiplo pallet", "0%"],
+                    ["Líneas / 1000 unidades", "625 (200 líneas × 1000 / 320 unidades)"],
+                  ].map(([d, v], i) => (
+                    <tr key={i} className={i % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-800"}>
+                      <td className="border border-gray-200 dark:border-gray-600 px-3 py-1.5">{d}</td>
+                      <td className="border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-right font-mono">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs space-y-1">
+              <p><strong>Score RACK:</strong> (100 × 0) + (60 × 0) − (80 × 0.75) − (0.6 × 625) = 0 + 0 − 60 − 375 = <strong className="text-red-600 dark:text-red-400">−435</strong></p>
+              <p><strong>Score BALDA:</strong> (100 × 0.75) + (0.6 × 625) − (60 × 0) − (100 × 0) = 75 + 375 = <strong className="text-green-700 dark:text-green-400">+450</strong></p>
+              <p className="mt-2 font-semibold text-orange-700 dark:text-orange-300">→ Score BALDA (450) ≥ 20: sugerencia emitida — RACK/PALLET → BALDA ✓</p>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              <strong>Interpretación:</strong> el aceite se pickea de a 1-2 unidades constantemente. Ubicarlo en balda permite al operario acceder directamente sin mover estibas ni usar escalera. La operación gana agilidad y el rack se libera para un producto de volumen.
+            </p>
+          </div>
+        </div>
+
+        {/* Ejemplo 2 */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-6">
+          <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <span className="font-semibold text-blue-800 dark:text-blue-300">Ejemplo B — Producto en BALDA que debería ir a RACK</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <p className="text-xs"><strong>Situación:</strong> "Detergente 5L" está en estantería de balda. Se pickea 80 veces en el mes. La caja trae 6 unidades y el 70% de las veces se pickea exactamente en múltiplos de 6 (una caja entera o más). El pallet trae 60 unidades y el 15% de las líneas es un pallet completo.</p>
+            <div className="overflow-x-auto">
+              <table className="text-xs border-collapse w-full">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-800">
+                    <th className="border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-left">Dato</th>
+                    <th className="border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["Tipología actual", "BALDA"],
+                    ["Líneas totales", "80"],
+                    ["Unidades totales", "3.200"],
+                    ["% líneas unitarias", "2% (casi nunca 1 unidad)"],
+                    ["% múltiplo caja (6u)", "70%"],
+                    ["% múltiplo pallet (60u)", "15%"],
+                    ["Líneas / 1000 unidades", "25 (80 × 1000 / 3200)"],
+                  ].map(([d, v], i) => (
+                    <tr key={i} className={i % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-800"}>
+                      <td className="border border-gray-200 dark:border-gray-600 px-3 py-1.5">{d}</td>
+                      <td className="border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-right font-mono">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs space-y-1">
+              <p><strong>Score RACK:</strong> (100 × 0.15) + (60 × 0.70) − (80 × 0.02) − (0.6 × 25) = 15 + 42 − 1.6 − 15 = <strong className="text-green-700 dark:text-green-400">+40.4</strong></p>
+              <p><strong>Score BALDA:</strong> (100 × 0.02) + (0.6 × 25) − (60 × 0.70) − (100 × 0.15) = 2 + 15 − 42 − 15 = <strong className="text-red-600 dark:text-red-400">−40</strong></p>
+              <p className="mt-2 font-semibold text-blue-700 dark:text-blue-300">→ Score RACK (40.4) ≥ 20: sugerencia emitida — BALDA → RACK/PALLET ✓</p>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              <strong>Interpretación:</strong> el detergente sale mayormente en cajas o pallets completos. En rack se puede reponer y pickear con autoelevador o transpaleta, reduciendo el tiempo por línea. En balda obliga a manipulación individual de cajas pesadas.
+            </p>
+          </div>
+        </div>
+
+        {/* Ejemplo 3 */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">Ejemplo C — Producto sin sugerencia (OK)</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <p className="text-xs"><strong>Situación:</strong> "Yogur bebible 200ml" en balda. Se pickea 150 veces, siempre de a 1-3 unidades, casi nunca en múltiplos de caja. El score hacia RACK es bajo.</p>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs space-y-1">
+              <p><strong>Score RACK:</strong> (100 × 0) + (60 × 0.05) − (80 × 0.80) − (0.6 × 450) = 0 + 3 − 64 − 270 = <strong>−331</strong></p>
+              <p><strong>Score BALDA:</strong> (100 × 0.80) + (0.6 × 450) − (60 × 0.05) − (100 × 0) = 80 + 270 − 3 = <strong>+347</strong></p>
+              <p className="mt-2 font-semibold text-gray-600 dark:text-gray-400">→ Ya está en BALDA y el Score BALDA es dominante: resultado "OK / SIN CAMBIO SUGERIDO" ✓</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Líneas evitables */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Paso 4 — Estimar las líneas evitables</h2>
+        <p>
+          Para cuantificar el beneficio potencial de un cambio, se compara la <strong>fragmentación actual</strong> del SKU
+          (medida en líneas/1000 unidades) contra el <strong>benchmark de la tipología objetivo</strong>: la mediana de
+          líneas/1000 unidades de todos los productos que ya están en esa tipología.
+        </p>
+        <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs font-mono space-y-2">
+          <p>Líneas evitables = (L/1000u actual − mediana L/1000u del objetivo) × (unidades pickeadas / 1000)</p>
+          <p className="text-gray-500">— Solo se calcula si L/1000u actual &gt; mediana objetivo (hay margen de mejora)</p>
+          <p className="text-gray-500">— Si el producto ya es más eficiente que la mediana, el valor es 0</p>
+        </div>
+        <div className="mt-4 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs">
+          <p className="font-semibold mb-2">Continuando el Ejemplo A (Aceite de oliva — RACK → BALDA):</p>
+          <ul className="space-y-1 list-disc list-inside">
+            <li>L/1000u actual: 625</li>
+            <li>Mediana de L/1000u de todos los productos en BALDA: supongamos 180</li>
+            <li>Unidades pickeadas en el período: 320</li>
+            <li className="font-semibold text-green-700 dark:text-green-400">Líneas evitables = (625 − 180) × (320 / 1000) = 445 × 0.32 = <strong>142 líneas</strong></li>
+          </ul>
+          <p className="mt-2 text-gray-500">
+            Esto significa que si el aceite se comportara como un producto típico de balda, se generarían 142 líneas menos de picking
+            en el mismo período, con el mismo volumen vendido.
+          </p>
+        </div>
+      </section>
+
+      {/* 7. Cuándo NO actuar */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Cuándo NO actuar sobre una sugerencia</h2>
+        <div className="space-y-3">
+          <div className="flex gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <span className="text-yellow-600 text-lg">⚠</span>
+            <div>
+              <p className="font-semibold text-yellow-800 dark:text-yellow-300 text-xs mb-1">REVISAR ASIGNACIONES — El maestro no representa la realidad</p>
+              <p className="text-xs">Si menos del 50% de las unidades se pickearon desde la ubicación asignada en el maestro, el análisis parte de datos sucios. Antes de mover el producto, hay que corregir las asignaciones en el WMS y esperar un nuevo período de análisis.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <span className="text-gray-500 text-lg">📦</span>
+            <div>
+              <p className="font-semibold text-gray-700 dark:text-gray-300 text-xs mb-1">Pocos días de actividad</p>
+              <p className="text-xs">Un SKU con solo 2-3 días activos puede tener un comportamiento puntual (liquidación, promoción). Considerar si el período analizado es representativo de la operación normal antes de mover el producto.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <span className="text-gray-500 text-lg">🔢</span>
+            <div>
+              <p className="font-semibold text-gray-700 dark:text-gray-300 text-xs mb-1">Sin datos de pack (caja/pallet = NULL)</p>
+              <p className="text-xs">Si el maestro de artículos no tiene definidas las unidades por caja o por pallet, los % de múltiplos no son confiables. El score puede ser correcto por otras señales (% unitario, L/1000u), pero conviene validar el maestro antes de actuar.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <span className="text-gray-500 text-lg">🏗</span>
+            <div>
+              <p className="font-semibold text-gray-700 dark:text-gray-300 text-xs mb-1">Restricciones físicas del depósito</p>
+              <p className="text-xs">El algoritmo no conoce la disponibilidad real de posiciones en cada tipología. Un producto puede tener sugerencia válida pero no haber espacio en balda o el rack puede estar a máxima capacidad. La sugerencia es una señal de oportunidad; la decisión final incorpora la realidad física del layout.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 8. Filtros de calidad */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Filtros de calidad aplicados</h2>
+        <ul className="space-y-2 list-disc list-inside text-sm">
+          <li><strong>Mínimo 10 líneas de picking</strong> en el período: evita sugerencias con evidencia insuficiente.</li>
+          <li><strong>Solo tipologías BALDA o RACK/PALLET</strong>: las áreas especiales quedan fuera del análisis de re-slotting.</li>
+          <li><strong>Umbral de score ≥ 20</strong>: filtra productos con señal débil o ambigua.</li>
+          <li><strong>≥ 50% desde ubicación asignada</strong>: garantiza que el dato refleje el slot real y no picks dispersos por excepciones operativas.</li>
+        </ul>
+      </section>
+
+      {/* 9. Frecuencia */}
+      <section className="pb-8">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Frecuencia de actualización</h2>
+        <p>
+          El análisis se recalcula <strong>una vez por día</strong> mediante el stored procedure <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono">bi.usp_build_slotting_sugerencias</code>.
+          El tablero muestra siempre la última foto disponible. La fecha y ventana de análisis aparecen debajo del título del tablero.
+        </p>
+        <p className="mt-2">
+          Se recomienda ejecutar el SP sobre una <strong>ventana móvil de 30 días</strong> para capturar el comportamiento reciente sin
+          distorsiones de estacionalidad. Ventanas más cortas (7 días) son útiles post-reubicación para validar el impacto,
+          pero pueden no ser representativas de la operación habitual.
+        </p>
+      </section>
+
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
 export default function SlottingPage() {
   const [data, setData] = useState<SlottingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"analisis" | "metodologia">("analisis");
   const [search, setSearch] = useState("");
   const [filterSugerencia, setFilterSugerencia] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("lineas_potencialmente_evitables");
@@ -310,6 +667,26 @@ export default function SlottingPage() {
         )}
       </header>
 
+      {/* ── Tabs ── */}
+      <div className="flex gap-1 mb-8 border-b border-gray-200 dark:border-gray-700">
+        {(["analisis", "metodologia"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab
+                ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300"
+            }`}
+          >
+            {tab === "analisis" ? "Análisis" : "Metodología"}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "metodologia" && <MetodologiaTab />}
+
+      {activeTab === "analisis" && <>
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 relative">
@@ -577,6 +954,7 @@ export default function SlottingPage() {
           </table>
         </div>
       </div>
+      </>}
     </main>
   );
 }
