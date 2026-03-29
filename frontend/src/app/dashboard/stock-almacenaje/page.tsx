@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { InfoTooltip } from "@/components/InfoTooltip";
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { clientName } from "@/lib/env";
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -13,32 +14,29 @@ const styles = `
   .animate-fade-in {
     animation: fadeIn 200ms ease-out forwards;
   }
-  
-  /* Custom bar chart styles - Dark theme optimized */
+
   .recharts-bar-rectangle {
     transition: all 0.15s ease-in-out !important;
   }
-  
+
   .recharts-bar-rectangle:hover {
     filter: brightness(1.08) !important;
     stroke: rgba(255, 255, 255, 0.2) !important;
     stroke-width: 1px !important;
   }
-  
+
   .recharts-bar-rectangle.recharts-active-bar {
     filter: brightness(1.12) !important;
     stroke: rgba(255, 255, 255, 0.3) !important;
     stroke-width: 1.5px !important;
   }
-  
-  /* Remove any background overlays */
+
   .recharts-active-bar-background,
   .recharts-bar-background-rectangle {
     display: none !important;
     opacity: 0 !important;
   }
-  
-  /* Dark mode tooltip adjustments */
+
   .recharts-tooltip-wrapper {
     border: 1px solid #374151 !important;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
@@ -80,197 +78,188 @@ interface StockAlmacenajeData {
     }>;
   };
   generatedAt: string;
-};
+}
+
+// Colores fijos para el gráfico de torta (determinísticos)
+const PIE_COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#14b8a6',
+];
 
 // Componente para tarjeta de KPI
-const KPICard = ({ 
-  title, 
-  value, 
-  subtitle, 
+const KPICard = ({
+  title,
+  value,
+  subtitle,
   color,
   tooltip
-}: { 
-  title: string; 
-  value: string | number; 
-  subtitle?: string; 
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
   color: string;
   tooltip?: string;
 }) => {
-  const colorClasses = {
-    blue: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
-    green: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
-    red: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+  const colorClasses: Record<string, string> = {
+    blue:   'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
+    green:  'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
+    red:    'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
     orange: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800',
-    yellow: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+    yellow: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800',
+    purple: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800',
   };
 
-  const textClasses = {
-    blue: 'text-blue-800 dark:text-blue-200',
-    green: 'text-green-800 dark:text-green-200',
-    red: 'text-red-800 dark:text-red-200',
+  const textClasses: Record<string, string> = {
+    blue:   'text-blue-800 dark:text-blue-200',
+    green:  'text-green-800 dark:text-green-200',
+    red:    'text-red-800 dark:text-red-200',
     orange: 'text-orange-800 dark:text-orange-200',
-    yellow: 'text-yellow-800 dark:text-yellow-200'
+    yellow: 'text-yellow-800 dark:text-yellow-200',
+    purple: 'text-purple-800 dark:text-purple-200',
   };
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: styles }} />
-      <div className={`${colorClasses[color as keyof typeof colorClasses]} border rounded-lg p-6 relative`}>
-        {tooltip && (
-          <div className="absolute top-2 right-2">
-            <InfoTooltip content={tooltip} />
-          </div>
-        )}
-        <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-          {title}
+    <div className={`${colorClasses[color] ?? colorClasses.blue} border rounded-lg p-6 relative`}>
+      {tooltip && (
+        <div className="absolute top-2 right-2">
+          <InfoTooltip content={tooltip} />
         </div>
-        <div className={`text-2xl font-bold ${textClasses[color as keyof typeof textClasses]} mb-1`}>
-          {value}
-        </div>
-        {subtitle && (
-          <div className={`text-xs ${textClasses[color as keyof typeof textClasses]} opacity-75`}>
-            {subtitle}
-          </div>
-        )}
+      )}
+      <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+        {title}
       </div>
-    </>
+      <div className={`text-2xl font-bold ${textClasses[color] ?? textClasses.blue} mb-1`}>
+        {value}
+      </div>
+      {subtitle && (
+        <div className={`text-xs ${textClasses[color] ?? textClasses.blue} opacity-75`}>
+          {subtitle}
+        </div>
+      )}
+    </div>
   );
 };
 
 export default function StockAlmacenajePage() {
-
-  
   const [data, setData] = useState<StockAlmacenajeData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [sku, setSku] = useState('');
   const [proveedor, setProveedor] = useState('');
-  const [selectedSector, setSelectedSector] = useState<string | null>(null);
-  const [selectedSeccion, setSelectedSeccion] = useState<string | null>(null);
-  const [selectedTipoCanal, setSelectedTipoCanal] = useState<string | null>(null);
-  const [hoveredSectorIndex, setHoveredSectorIndex] = useState<number | null>(null);
-  const [hoveredCanalIndex, setHoveredCanalIndex] = useState<number | null>(null);
 
-  // Fetch data from API con filtros (debounced)
-  const fetchStockAlmacenajeData = useCallback(
-    async () => {
-      setLoading(true);
-      
-      try {
-        const params = new URLSearchParams();
-        
-        if (sku.trim()) {
-          params.append('sku', sku.trim());
-        }
-        if (proveedor.trim()) {
-          params.append('proveedor', proveedor.trim());
-        }
-        
-        const url = `/api/stock-almacenaje?${params}`;
+  const fetchStockAlmacenajeData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-        
-        const response = await fetch(url);
+    try {
+      const params = new URLSearchParams();
+      if (sku.trim()) params.append('sku', sku.trim());
+      if (proveedor.trim()) params.append('proveedor', proveedor.trim());
 
-        
-        if (!response.ok) {
+      const response = await fetch(`/api/stock-almacenaje?${params}`);
+      if (!response.ok) throw new Error(`Error del backend: ${response.status}`);
 
-          throw new Error(`Error del backend: ${response.status}`);
-        }
+      const result = await response.json();
+      setData(result);
+    } catch (err) {
+      setError('No se pudieron cargar los datos. Verificá la conexión con el servidor.');
+    } finally {
+      setLoading(false);
+    }
+  }, [sku, proveedor]);
 
-        const result = await response.json();
-
-        setData(result);
-      } catch (error) {
-
-        alert('Error al cargar los datos. Por favor intente nuevamente.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [sku, proveedor]
-  );
-
-  // Cargar datos al montar el componente
   useEffect(() => {
-
     fetchStockAlmacenajeData();
   }, [fetchStockAlmacenajeData]);
 
-  // Función para formatear números
-  const formatNumber = (num: number): string => {
-    return new Intl.NumberFormat('es-AR').format(Math.round(num));
-  };
+  const formatNumber = (num: number): string =>
+    new Intl.NumberFormat('es-AR').format(Math.round(num));
 
-  // Función para formatear etiquetas
-  const formatChipLabel = (value: string | null, placeholder: string, truncate: boolean = false) => {
-    if (!value) return placeholder;
-    if (truncate && value.length > 15) return value.substring(0, 12) + '...';
-    return value;
-  };
-
-  // Tarjetas KPI
   const kpiCards = useMemo(() => {
     if (!data) return [];
-    
+
     return [
       {
         title: "Total Pallets",
         value: formatNumber(data.kpis.pallets),
-        color: "blue" as const,
-        tooltip: "Número total de pallets en almacenamiento"
+        color: "blue",
+        tooltip: "Cantidad total de pallets físicamente almacenados en el depósito en la fecha de la foto."
       },
       {
         title: "Stock Cajas",
         value: formatNumber(Number(data.kpis.stockCajas)),
-        color: "green" as const,
-        tooltip: "Total de cajas en stock"
+        color: "green",
+        tooltip: "Total de cajas en stock, independientemente de su estado de bloqueo o canal asignado."
       },
       {
         title: "Stock Unidades",
         value: formatNumber(Number(data.kpis.stockUnidades)),
-        color: "purple" as const,
-        tooltip: "Total de unidades individuales en stock"
+        color: "purple",
+        tooltip: "Total de unidades individuales en stock. Equivale a la suma de (cajas × unidades por caja) de todos los contenedores."
       },
       {
         title: "Contenedores Fuera de Almacén",
         value: formatNumber(Number(data.kpis.contenedoresFueraAlmacenaje)),
         subtitle: "Fuera del área de almacenamiento",
-        color: "orange" as const,
-        tooltip: "Contenedores con FueraDeAlmacenaje=1"
+        color: "orange",
+        tooltip: "Contenedores registrados en el sistema pero que físicamente no están en una ubicación de almacenaje (en recepción, staging, tránsito interno, etc.). Requieren revisión y reubicación."
       },
       {
         title: "Contenedores Bloqueados",
         value: formatNumber(Number(data.kpis.contenedoresBloqueados)),
         subtitle: "Por bloqueo de contenedor",
-        color: "orange" as const,
-        tooltip: "Contenedores con Bloqueo_Contenedor=1"
+        color: "orange",
+        tooltip: "Contenedores bloqueados a nivel de contenedor: no disponibles para picking ni despacho hasta que se levante el bloqueo. Causas habituales: cuarentena de calidad, discrepancia de conteo, mercadería dañada."
       },
       {
         title: "Ubicaciones Bloqueadas",
         value: formatNumber(Number(data.kpis.ubicacionesBloqueadas)),
         subtitle: "Por bloqueo de ubicación",
-        color: "orange" as const,
-        tooltip: "Contenedores en ubicaciones con Ubicacion_Bloqueada=1"
+        color: "orange",
+        tooltip: "Contenedores en ubicaciones físicas bloqueadas (piso, pasillo o posición fuera de servicio). Todo el stock en esas posiciones queda inoperable hasta que se habilite la ubicación."
       },
       {
         title: "Contenedores Vencidos",
         value: formatNumber(Number(data.kpis.contenedoresVencidos)),
         subtitle: "Con fecha de vencimiento pasada",
-        color: Number(data.kpis.contenedoresVencidos) > 0 ? "red" as const : "green" as const,
-        tooltip: "Contenedores vencidos (excluye fecha 1900-01-01 como sin vencimiento)"
+        color: Number(data.kpis.contenedoresVencidos) > 0 ? "red" : "green",
+        tooltip: "Contenedores cuya fecha de vencimiento ya pasó. Deben ser revisados, retirados del stock disponible y gestionados según el procedimiento de merma. Se excluyen contenedores sin fecha de vencimiento registrada."
       }
     ];
   }, [data]);
 
-  // Datos filtrados para gráficos
-  const filteredPalletsPorSector = useMemo(() => {
-    if (!data?.graficos?.palletsPorSector) return [];
-    return data.graficos.palletsPorSector;
-  }, [data?.graficos?.palletsPorSector]);
+  const filteredPalletsPorSector = useMemo(
+    () => data?.graficos?.palletsPorSector ?? [],
+    [data?.graficos?.palletsPorSector]
+  );
 
-  const filteredPalletsPorSeccion = useMemo(() => {
-    if (!data?.graficos?.palletsPorSeccion) return [];
-    return data.graficos.palletsPorSeccion;
-  }, [data?.graficos?.palletsPorSeccion]);
+  const filteredPalletsPorSeccion = useMemo(
+    () => data?.graficos?.palletsPorSeccion ?? [],
+    [data?.graficos?.palletsPorSeccion]
+  );
+
+  const canalData = useMemo(
+    () => (data?.graficos?.contenedoresPorCanal ?? [])
+      .filter(item => item.TipoCanal !== "Sin canal")
+      .sort((a, b) => b.Contenedores - a.Contenedores),
+    [data?.graficos?.contenedoresPorCanal]
+  );
+
+  const tooltipStyle = {
+    contentStyle: {
+      backgroundColor: '#1f2937',
+      border: '1px solid #374151',
+      borderRadius: '6px'
+    },
+    labelStyle: { color: '#f3f4f6', fontWeight: 'bold' as const },
+    itemStyle: { color: '#f3f4f6' }
+  };
+
+  const hasData = data && (
+    Number(data.kpis.pallets) > 0 ||
+    Number(data.kpis.stockCajas) > 0 ||
+    Number(data.kpis.stockUnidades) > 0
+  );
 
   if (loading && !data) {
     return (
@@ -288,7 +277,7 @@ export default function StockAlmacenajePage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                Stock y Almacenaje
+                Stock y Almacenaje — {clientName}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 Visión general del inventario y ocupación del almacén
@@ -302,7 +291,19 @@ export default function StockAlmacenajePage() {
           </div>
         </header>
 
-        
+        {/* Error banner */}
+        {error && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
+            <span className="text-red-600 dark:text-red-400 font-medium">{error}</span>
+            <button
+              onClick={fetchStockAlmacenajeData}
+              className="ml-auto text-sm text-red-700 dark:text-red-300 underline hover:no-underline"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
         {/* Filtros */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 border border-gray-200 dark:border-gray-700 mb-8">
           <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
@@ -345,7 +346,6 @@ export default function StockAlmacenajePage() {
                 onClick={() => {
                   setSku('');
                   setProveedor('');
-                  fetchStockAlmacenajeData();
                 }}
                 disabled={loading}
                 className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -354,39 +354,10 @@ export default function StockAlmacenajePage() {
               </button>
             </div>
           </div>
-          {(selectedSector || selectedSeccion || selectedTipoCanal) && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Filtros por interacción:</span>
-              {selectedSector && (
-                <button
-                  onClick={() => setSelectedSector(null)}
-                  className="flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 transition-colors"
-                >
-                  Sector: {formatChipLabel(selectedSector, 'Sin sector', true)} <span className="opacity-70">x</span>
-                </button>
-              )}
-              {selectedSeccion && (
-                <button
-                  onClick={() => setSelectedSeccion(null)}
-                  className="flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 transition-colors"
-                >
-                  Sección: {formatChipLabel(selectedSeccion, 'Sin sección', true)} <span className="opacity-70">x</span>
-                </button>
-              )}
-              {selectedTipoCanal && (
-                <button
-                  onClick={() => setSelectedTipoCanal(null)}
-                  className="flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 transition-colors"
-                >
-                  Tipo: {formatChipLabel(selectedTipoCanal, 'Sin tipo', true)} <span className="opacity-70">x</span>
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Empty State */}
-        {data && (Number(data.kpis.pallets) === 0 && Number(data.kpis.stockCajas) === 0 && Number(data.kpis.stockUnidades) === 0) && (
+        {data && !hasData && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-8 mb-8 text-center">
             <div className="text-6xl mb-4">📦</div>
             <h3 className="text-xl font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
@@ -395,38 +366,26 @@ export default function StockAlmacenajePage() {
             <p className="text-yellow-700 dark:text-yellow-300 mb-6">
               No se encontraron registros de stock y almacenaje para los criterios seleccionados.
             </p>
-            <div className="text-left">
-              <h4 className="font-medium mb-2">💡 Sugerencias:</h4>
-              <ul className="space-y-1 text-left">
-                <li>• Prueba con diferentes SKU o proveedores</li>
-                <li>• Deja los filtros vacíos para ver todos los datos</li>
-                <li>• Verifica la ortografía de los términos</li>
-              </ul>
-            </div>
             <button
-              onClick={() => {
-                setSku('');
-                setProveedor('');
-                fetchStockAlmacenajeData();
-              }}
-              className="mt-6 w-full text-left px-3 py-2 bg-yellow-100 dark:bg-yellow-800 rounded hover:bg-yellow-200 dark:hover:bg-yellow-700 transition-colors"
+              onClick={() => { setSku(''); setProveedor(''); }}
+              className="px-4 py-2 bg-yellow-100 dark:bg-yellow-800 rounded hover:bg-yellow-200 dark:hover:bg-yellow-700 transition-colors text-yellow-800 dark:text-yellow-200"
             >
-              📋 Ver todos los registros
+              Ver todos los registros
             </button>
           </div>
         )}
-        
+
         {/* KPI Cards */}
-        {data && (Number(data.kpis.pallets) > 0 || Number(data.kpis.stockCajas) > 0 || Number(data.kpis.stockUnidades) > 0) && (
+        {hasData && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-            {kpiCards.map((kpi: any, index: number) => (
+            {kpiCards.map((kpi, index) => (
               <KPICard key={index} {...kpi} />
             ))}
           </div>
         )}
 
         {/* Gráficos */}
-        {data && (Number(data.kpis.pallets) > 0 || Number(data.kpis.stockCajas) > 0 || Number(data.kpis.stockUnidades) > 0) && (
+        {hasData && (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {/* Pallets por Sector */}
@@ -442,24 +401,14 @@ export default function StockAlmacenajePage() {
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={filteredPalletsPorSector} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} />
-                    <XAxis type="category" dataKey="Sector" tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                    <YAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={(value) => formatNumber(Number(value))} />
-                    <Tooltip 
+                    <XAxis dataKey="Sector" tick={{ fontSize: 11, fill: '#9ca3af' }} />
+                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={(v) => formatNumber(Number(v))} />
+                    <Tooltip
                       formatter={(value: any) => [formatNumber(Number(value)), 'Pallets']}
-                      contentStyle={{ 
-                        backgroundColor: '#1f2937', 
-                        border: '1px solid #374151', 
-                        borderRadius: '6px' 
-                      }}
-                      labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
-                      itemStyle={{ color: '#f3f4f6' }}
+                      {...tooltipStyle}
                       cursor={false}
                     />
-                    <Bar 
-                      dataKey="Pallets" 
-                      fill="#3b82f6"
-                      radius={[2, 2, 0, 0]}
-                    />
+                    <Bar dataKey="Pallets" fill="#3b82f6" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -477,103 +426,85 @@ export default function StockAlmacenajePage() {
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={filteredPalletsPorSeccion} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={(value) => formatNumber(Number(value))} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={(v) => formatNumber(Number(v))} />
                     <YAxis
                       type="category"
                       dataKey="Seccion"
                       width={140}
                       tick={{ fontSize: 11, fill: '#9ca3af' }}
                     />
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value: any) => [formatNumber(Number(value)), 'Pallets']}
-                      contentStyle={{ 
-                        backgroundColor: '#1f2937', 
-                        border: '1px solid #374151', 
-                        borderRadius: '6px' 
-                      }}
-                      labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
-                      itemStyle={{ color: '#f3f4f6' }}
+                      {...tooltipStyle}
                       cursor={false}
                     />
-                    <Bar 
-                      dataKey="Pallets" 
-                      fill="#10b981"
-                      radius={[0, 2, 2, 0]}
-                    />
+                    <Bar dataKey="Pallets" fill="#10b981" radius={[0, 2, 2, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Distribución de Contenedores en Canales */}
-            {data.graficos.contenedoresPorCanal && data.graficos.contenedoresPorCanal.length > 0 && (
+            {/* Distribución de Contenedores por Canal */}
+            {canalData.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
                 <div className="mb-4">
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                      Distribución de Contenedores en Canales
+                      Distribución de Contenedores por Canal
                     </h2>
                     <InfoTooltip content="Porcentaje de contenedores asignados a cada canal de despacho (supermercados, mayoristas, etc.). Permite visualizar el peso operativo de cada canal sobre el stock almacenado." />
                   </div>
                 </div>
-                <div className="relative">
-                  <ResponsiveContainer width="100%" height={300}>
+                <div className="flex flex-col lg:flex-row items-center gap-6">
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie
-                        data={data.graficos.contenedoresPorCanal
-                          .filter(item => item.TipoCanal !== "Sin canal")
-                          .map(item => ({
-                          ...item,
-                          cantidad: item.Contenedores,
-                          color: `hsl(${Math.random() * 360}, 70%, 50%)`
-                        }))}
+                        data={canalData}
                         cx="50%"
                         cy="50%"
-                        labelLine={false}
-                        label={({ TipoCanal, percent }: any) => `${TipoCanal}: ${((percent || 0) * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="cantidad"
+                        labelLine={true}
+                        label={({ TipoCanal, percent }: any) =>
+                          (percent ?? 0) > 0.04 ? `${TipoCanal}: ${((percent ?? 0) * 100).toFixed(0)}%` : ''
+                        }
+                        outerRadius={100}
+                        dataKey="Contenedores"
                       >
-                        {data.graficos.contenedoresPorCanal
-                          .filter(item => item.TipoCanal !== "Sin canal")
-                          .map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={`hsl(${index * 36}, 70%, 50%)`} stroke="#fff" strokeWidth={1} />
+                        {canalData.map((_, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={PIE_COLORS[index % PIE_COLORS.length]}
+                            stroke="#fff"
+                            strokeWidth={1}
+                          />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: any) => [formatNumber(Number(value)), 'Contenedores']}
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: '1px solid #374151', 
-                          borderRadius: '6px' 
-                        }}
-                        labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
-                        itemStyle={{ color: '#f3f4f6' }}
+                        {...tooltipStyle}
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  
-                  {/* Etiquetas de texto en esquina superior derecha */}
-                  <div className="absolute top-0 right-0 space-y-1 max-w-xs">
-                    {data.graficos.contenedoresPorCanal
-                      .filter(item => item.TipoCanal !== "Sin canal")
-                      .sort((a, b) => b.Contenedores - a.Contenedores)
-                      .map((item, index) => {
-                        const total = data.graficos.contenedoresPorCanal
-                          .filter(c => c.TipoCanal !== "Sin canal")
-                          .reduce((sum, c) => sum + c.Contenedores, 0);
-                        const percentage = ((item.Contenedores / total) * 100).toFixed(1);
-                        return (
-                          <div key={index} className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                            <span className="font-medium">{item.TipoCanal}</span>
-                            {" -> "}
-                            <span>{formatNumber(item.Contenedores)} Cont</span>
-                            {" -> "}
-                            <span>{percentage}%</span>
+
+                  {/* Leyenda */}
+                  <div className="space-y-2 w-[220px] flex-shrink-0 pr-6">
+                    {canalData.map((item, index) => {
+                      const total = canalData.reduce((sum, c) => sum + c.Contenedores, 0);
+                      const pct = ((item.Contenedores / total) * 100).toFixed(1);
+                      return (
+                        <div key={index} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                          <span
+                            className="inline-block w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
+                            style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                          />
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-medium leading-snug">{item.TipoCanal}</span>
+                            <span className="text-gray-500 dark:text-gray-400 text-xs">
+                              {formatNumber(item.Contenedores)} cont. · {pct}%
+                            </span>
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

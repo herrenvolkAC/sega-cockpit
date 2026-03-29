@@ -124,6 +124,70 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
         OPTION (RECOMPILE)
       `;
 
+      // 6. Franja horaria de llegada de camiones
+      const franjaHorariaQuery = `
+        SELECT
+          DATEPART(HOUR, camion_entrada_dt)     AS hora,
+          COUNT(DISTINCT camion_id)             AS camiones,
+          SUM(COALESCE(pallets, 0))             AS uls
+        FROM bi.fact_recepcion_sku WITH (NOLOCK)
+        WHERE fecha_operativa >= @from_date_param
+          AND fecha_operativa <  @to_date_next_param
+          AND camion_entrada_dt IS NOT NULL
+          ${proveedor ? 'AND proveedor LIKE @proveedor_param' : ''}
+          ${sku       ? 'AND sku       LIKE @sku_param'       : ''}
+        GROUP BY DATEPART(HOUR, camion_entrada_dt)
+        ORDER BY hora
+        OPTION (RECOMPILE)
+      `;
+
+      // 7. Ranking de proveedores (top 15 por volumen)
+      const rankingProveedoresQuery = `
+        SELECT TOP 15
+          proveedor,
+          COUNT(DISTINCT recepcion_id)                                         AS recepciones,
+          SUM(COALESCE(pallets, 0))                                            AS total_uls,
+          SUM(COALESCE(cantidad_cajas, 0))                                     AS total_cajas,
+          AVG(CASE WHEN inicio_dt IS NOT NULL AND fin_dt IS NOT NULL
+                THEN CAST(DATEDIFF(minute, inicio_dt, fin_dt) AS float) / 60.0
+                ELSE NULL END)                                                 AS tiempo_recepcion_avg_h,
+          CAST(SUM(COALESCE(cantidad_cajas, 0)) AS float)
+            / NULLIF(SUM(COALESCE(pallets, 0)), 0)                            AS cajas_por_ul
+        FROM bi.fact_recepcion_sku WITH (NOLOCK)
+        WHERE fecha_operativa >= @from_date_param
+          AND fecha_operativa <  @to_date_next_param
+          ${sku ? 'AND sku LIKE @sku_param' : ''}
+        GROUP BY proveedor
+        ORDER BY total_uls DESC
+        OPTION (RECOMPILE)
+      `;
+
+      // 8. Throughput diario (ULs/hora basado en ventana operativa MIN(inicio_dt)-MAX(fin_dt))
+      const throughputDiarioQuery = `
+        SELECT
+          CONVERT(varchar, fecha_operativa, 103) AS fecha,
+          FORMAT(fecha_operativa, 'dd/MM')       AS dia,
+          SUM(COALESCE(pallets, 0))              AS uls_total,
+          DATEDIFF(minute, MIN(inicio_dt), MAX(fin_dt)) / 60.0 AS horas_operativas,
+          CASE WHEN DATEDIFF(minute, MIN(inicio_dt), MAX(fin_dt)) > 0
+            THEN SUM(COALESCE(pallets, 0))
+                 / (DATEDIFF(minute, MIN(inicio_dt), MAX(fin_dt)) / 60.0)
+            ELSE NULL END                        AS uls_por_hora
+        FROM bi.fact_recepcion_sku WITH (NOLOCK)
+        WHERE fecha_operativa >= @from_date_param
+          AND fecha_operativa <  @to_date_next_param
+          AND inicio_dt IS NOT NULL
+          AND fin_dt    IS NOT NULL
+          ${proveedor ? 'AND proveedor LIKE @proveedor_param' : ''}
+          ${sku       ? 'AND sku       LIKE @sku_param'       : ''}
+        GROUP BY fecha_operativa, FORMAT(fecha_operativa, 'dd/MM'), CONVERT(varchar, fecha_operativa, 103)
+        ORDER BY fecha_operativa
+        OPTION (RECOMPILE)
+      `;
+
+      // 9. Total sectores en catálogo
+      const totalSectoresQuery = `SELECT COUNT(*) AS total FROM dbo.SECTORES`;
+
       // 6. KPIs ponderados del período (promedio real por evento) - QUERY NUEVA
       const kpisPeriodoQuery = `
         SELECT 
@@ -143,17 +207,18 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
         OPTION (RECOMPILE)
       `;
 
-      // Ejecutar todas las queries en paralelo con instrumentación
-      const [ulsResult, cajasResult, tiempoRecepcionResult, tiempoCamionResult, seccionResult] = await Promise.all([
-        executeWithTiming('ULS_POR_DIA', createTimedRequest().query(ulsPorDiaQuery)),
-        
-        executeWithTiming('CAJAS_POR_DIA', createTimedRequest().query(cajasPorDiaQuery)),
-        
+      // Ejecutar todas las queries en paralelo
+      const [ulsResult, cajasResult, tiempoRecepcionResult, tiempoCamionResult, seccionResult,
+             franjaResult, rankingResult, throughputResult, totalSectoresResult] = await Promise.all([
+        executeWithTiming('ULS_POR_DIA',              createTimedRequest().query(ulsPorDiaQuery)),
+        executeWithTiming('CAJAS_POR_DIA',            createTimedRequest().query(cajasPorDiaQuery)),
         executeWithTiming('TIEMPO_RECEPCION_POR_DIA', createTimedRequest().query(tiempoRecepcionPorDiaQuery)),
-        
-        executeWithTiming('TIEMPO_CAMION_POR_DIA', createTimedRequest().query(tiempoCamionPorDiaQuery)),
-        
-        executeWithTiming('RECEPCIONES_POR_SECCION', createTimedRequest().query(recepcionesPorSeccionQuery))
+        executeWithTiming('TIEMPO_CAMION_POR_DIA',    createTimedRequest().query(tiempoCamionPorDiaQuery)),
+        executeWithTiming('RECEPCIONES_POR_SECCION',  createTimedRequest().query(recepcionesPorSeccionQuery)),
+        executeWithTiming('FRANJA_HORARIA',           createTimedRequest().query(franjaHorariaQuery)),
+        executeWithTiming('RANKING_PROVEEDORES',      createTimedRequest().query(rankingProveedoresQuery)),
+        executeWithTiming('THROUGHPUT_DIARIO',        createTimedRequest().query(throughputDiarioQuery)),
+        executeWithTiming('TOTAL_SECTORES',           connection.request().query(totalSectoresQuery)),
       ]);
 
       // Ejecutar query de KPIs por separado
@@ -270,6 +335,32 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
         esAtipico: benchmarkCamion && dia.tiempo_promedio_horas > (benchmarkCamion.promedio * 2)
       }));
 
+      // Mapear franja horaria: rellenar horas sin actividad con 0
+      const franjaRaw = franjaResult.recordset as Array<{ hora: number; camiones: number; uls: number }>;
+      const franjaHoraria = Array.from({ length: 24 }, (_, h) => {
+        const found = franjaRaw.find(r => r.hora === h);
+        return { hora: h, label: `${String(h).padStart(2, '0')}:00`, camiones: found?.camiones ?? 0, uls: found?.uls ?? 0 };
+      }).filter(r => r.hora >= 4 && r.hora <= 23); // ignorar madrugada sin actividad (0-3hs)
+
+      const rankingProveedores = rankingResult.recordset.map((r: any) => ({
+        proveedor: r.proveedor || 'Sin nombre',
+        recepciones: parseInt(r.recepciones || 0),
+        total_uls: parseInt(r.total_uls || 0),
+        total_cajas: parseInt(r.total_cajas || 0),
+        tiempo_recepcion_avg_h: r.tiempo_recepcion_avg_h != null ? parseFloat(r.tiempo_recepcion_avg_h) : null,
+        cajas_por_ul: r.cajas_por_ul != null ? parseFloat(r.cajas_por_ul) : null,
+      }));
+
+      const throughputDiario = throughputResult.recordset.map((r: any) => ({
+        fecha: r.fecha,
+        dia: r.dia,
+        uls_total: parseInt(r.uls_total || 0),
+        horas_operativas: r.horas_operativas != null ? parseFloat(r.horas_operativas) : null,
+        uls_por_hora: r.uls_por_hora != null ? parseFloat(r.uls_por_hora) : null,
+      }));
+
+      const totalSectoresCatalogo = parseInt(totalSectoresResult.recordset[0]?.total ?? 0);
+
       const response = {
         databaseName: 'MACROMERCADO',
         fechaInicio: from_date,
@@ -284,6 +375,9 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
         tiempoRecepcionPorDia: tiempoRecepcionConOutliers,
         tiempoCamionPorDia: tiempoCamionConOutliers,
         recepcionesPorSeccion,
+        franjaHoraria,
+        rankingProveedores,
+        throughputDiario,
         // Benchmarks estadísticos (con outliers)
         benchmarks: {
           tiempoRecepcion: benchmarkRecepcion,
@@ -305,7 +399,8 @@ export default async function recepcionesRoute(fastify: FastifyInstance) {
           totalCajas: totalCajasPeriodo,
           totalDias: totalDiasConRecepcion,
           tiempoPromedioRecepcion: tiempoPromedioRecepcion,
-          totalSecciones: recepcionesPorSeccion.length
+          totalSecciones: recepcionesPorSeccion.length,
+          totalSectoresCatalogo,
         },
         // KPIs ponderados del período (promedio real por evento)
         kpis_periodo: kpisPeriodo,
