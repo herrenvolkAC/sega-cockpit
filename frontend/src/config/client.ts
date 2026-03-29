@@ -13,7 +13,9 @@ export type ModuleKey =
   | "expediciones"
   | "stock-almacenaje"
   | "stock"
-  | "slotting";
+  | "slotting"
+  | "ocupacion"
+  | "satisfaccion-oc";
 
 const ALL_MODULES: ModuleKey[] = [
   "fulfillment",
@@ -23,6 +25,8 @@ const ALL_MODULES: ModuleKey[] = [
   "stock-almacenaje",
   "stock",
   "slotting",
+  "ocupacion",
+  "satisfaccion-oc",
 ];
 
 function parseEnabledModules(value: string | undefined): Set<ModuleKey> {
