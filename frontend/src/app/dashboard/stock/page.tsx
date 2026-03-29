@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { clientName } from "@/lib/env";
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -84,18 +86,18 @@ interface StockData {
 };
 
 // Componente para tarjeta de riesgo
-const RiskCard = ({ 
-  title, 
-  value, 
-  subtitle, 
-  color, 
+const RiskCard = ({
+  title,
+  value,
+  subtitle,
+  color,
   badge,
   tooltip
-}: { 
-  title: string; 
-  value: string | number; 
-  subtitle?: string; 
-  color: string; 
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  color: string;
   badge?: { text: string; color: string };
   tooltip?: string;
 }) => {
@@ -118,26 +120,16 @@ const RiskCard = ({
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: styles }} />
-      <div className={`${colorClasses[color as keyof typeof colorClasses]} border rounded-lg p-6`}>
+      <div className={`${colorClasses[color as keyof typeof colorClasses]} border rounded-lg p-6 relative`}>
+        {tooltip && (
+          <div className="absolute top-2 right-2">
+            <InfoTooltip content={tooltip} />
+          </div>
+        )}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <h3 className={`text-sm font-medium ${textClasses[color as keyof typeof textClasses]}`}>
-            {title}
-          </h3>
-          {tooltip && (
-            <div className="group relative inline-block">
-              <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg p-3 w-72 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                {tooltip}
-                <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
-              </div>
-            </div>
-          )}
-        </div>
+        <h3 className={`text-sm font-medium pr-6 ${textClasses[color as keyof typeof textClasses]}`}>
+          {title}
+        </h3>
         {badge && (
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badge.color}`}>
             {badge.text}
@@ -169,21 +161,11 @@ const Top5StockChart = ({ data }: { data: any[] }) => {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Concentración de Stock – Top 5
         </h2>
-        <div className="group relative inline-block">
-          <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
-            <div className="text-xs leading-relaxed">
-              Muestra los 5 SKUs con mayor concentración de stock total y disponible. 
-              Permite identificar qué productos representan la mayor parte del capital inmovilizado en inventario.
-            </div>
-            <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
-          </div>
-        </div>
+        <InfoTooltip
+          title="¿Qué muestra este gráfico?"
+          content="Top 5 SKUs por volumen de stock. Stock Total incluye todas las unidades en el almacén (disponibles + reservadas + bloqueadas). Stock Disponible excluye reservas y ubicaciones bloqueadas — es el stock que puede usarse para nuevos pedidos. La brecha entre ambas barras indica unidades comprometidas o inaccesibles."
+          position="right"
+        />
       </div>
       <ResponsiveContainer width="100%" height={320}>
         <BarChart 
@@ -203,7 +185,8 @@ const Top5StockChart = ({ data }: { data: any[] }) => {
             tick={{ fontSize: 11 }} 
             tickFormatter={(value) => formatNumber(Number(value))}
           />
-          <Tooltip 
+          <Tooltip
+            cursor={false}
             formatter={(value: any, name: any) => {
               if (name === 'stockTotal') {
                 return [formatNumber(Number(value)), 'Stock Total'];
@@ -277,23 +260,14 @@ const AlertBarList = ({
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           {title}
         </h2>
-        <div className="group relative inline-block">
-          <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
-            <div className="text-xs leading-relaxed">
-              {title.includes("Riesgo de Quiebre") 
-                ? "Muestra los SKUs con menor cobertura de stock en días. Identifica los productos en riesgo crítico de quedarse sin inventario basado en el consumo diario promedio."
-                : "Muestra los SKUs con más días sin movimiento de stock. Identifica productos inmovilizados que podrían representar capital ocioso y obsolescencia."
-              }
-            </div>
-            <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
-          </div>
-        </div>
+        <InfoTooltip
+          title="¿Qué muestra este gráfico?"
+          content={title.includes("Riesgo de Quiebre")
+            ? "SKUs con menor cobertura de stock. Cálculo: Stock actual ÷ Consumo diario promedio del período. Umbral de alerta: < 7 días (rojo) y < 15 días (naranja). El consumo diario es el promedio de salidas registradas. SKUs sin consumo no aparecen en esta lista."
+            : "SKUs con mayor cantidad de días sin ningún movimiento de salida. Umbral de inclusión: más de 30 días sin movimiento. Cuanto mayor el valor, mayor el riesgo de obsolescencia o inmovilización de capital. La fecha de último movimiento permite identificar si el producto fue descontinuado."
+          }
+          position="right"
+        />
       </div>
       <div className="space-y-3 max-h-64 overflow-y-auto">
         {data.map((item, index) => (
@@ -343,9 +317,9 @@ const AlertBarList = ({
                     `Stock: ${formatNumber(item.stockActual)} | Consumo: ${formatNumber(item.consumoDiario)}/día`
                   ) : (
                     <div>
-                      <div>Stock: ${formatNumber(item.stockActual)} | Consumo: ${formatNumber(item.consumoPromedioDiario)}/día</div>
+                      <div>{`Stock: ${formatNumber(item.stockActual)} | Consumo: ${formatNumber(item.consumoPromedioDiario)}/día`}</div>
                       {item.ultimaFechaMovimiento && (
-                        <div>Últ. mov: ${new Date(item.ultimaFechaMovimiento).toLocaleDateString('es-AR')}</div>
+                        <div>{`Últ. mov: ${new Date(item.ultimaFechaMovimiento).toLocaleDateString('es-AR')}`}</div>
                       )}
                     </div>
                   )}
@@ -378,7 +352,7 @@ export default function StockPage() {
         }
         
         const url = `/api/stock?${params}`;
-        console.log('Requesting URL:', url);
+
         
         const response = await fetch(url);
         
@@ -389,7 +363,7 @@ export default function StockPage() {
         const result = await response.json();
         setData(result.data);
       } catch (error) {
-        console.error('Error fetching stock data:', error);
+
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);
@@ -445,7 +419,7 @@ export default function StockPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Inventario / Stock
+              Inventario / Stock — {clientName}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
               Gestión de riesgos y capital inmovilizado
@@ -515,32 +489,32 @@ export default function StockPage() {
               value={`${data.resumenEjecutivo?.porcentajeSinConsumo || 0}%`}
               subtitle={`${Math.round((data.resumenEjecutivo?.porcentajeSinConsumo || 0) * (data.resumenEjecutivo?.totalSkus || 0) / 100)} SKUs inactivos`}
               color="yellow"
-              tooltip="% de SKUs sin consumo en el período analizado. Basado en DPD/último movimiento."
+              tooltip="SKUs que no registraron consumo diario > 0 en el período analizado. Pueden ser productos descontinuados, de baja rotación estacional o con errores en el maestro. Umbral: consumo diario = 0."
             />
-            
+
             <RiskCard
               title="Cobertura Global (ponderada)"
               value={`${data.resumenEjecutivo?.coberturaGlobal || 0} días`}
               subtitle={`Stock total: ${formatNumber(data.resumenEjecutivo?.stockTotal || 0)} / Consumo diario: ${formatNumber(data.resumenEjecutivo?.consumoTotalDiario || 0)}`}
               color="blue"
               badge={getCoberturaBadge(data.resumenEjecutivo?.coberturaGlobal || 0)}
-              tooltip="Días de cobertura ponderados = Stock disponible / Consumo diario promedio."
+              tooltip="Días de stock disponible a nivel global. Cálculo: Stock Total ÷ Consumo Diario Total. El consumo diario es el promedio de salidas registradas en el período. Rangos: < 7 días = Crítico | 7–15 = Bajo | 15–120 = Saludable | 120–180 = Alto | > 180 = Sobrestock."
             />
-            
+
             <RiskCard
               title="% SKUs en Sobrestock"
               value={`${data.resumenEjecutivo?.porcentajeSobrestock || 0}%`}
-              subtitle={`${Math.round((data.resumenEjecutivo?.porcentajeSobrestock || 0) * (data.resumenEjecutivo?.totalSkus || 0) / 100)} SKUs con >120 días`}
+              subtitle={`${Math.round((data.resumenEjecutivo?.porcentajeSobrestock || 0) * (data.resumenEjecutivo?.totalSkus || 0) / 100)} SKUs con cobertura > 180 días`}
               color="orange"
-              tooltip="% de SKUs con cobertura > 120 días."
+              tooltip="Porcentaje de SKUs cuya cobertura supera los 180 días. Representa capital inmovilizado con riesgo de vencimiento u obsolescencia. Umbral: cobertura individual > 180 días."
             />
-            
+
             <RiskCard
               title="% SKUs en Riesgo Crítico"
               value={`${data.resumenEjecutivo?.porcentajeRiesgoCritico || 0}%`}
               subtitle={`${Math.round((data.resumenEjecutivo?.porcentajeRiesgoCritico || 0) * (data.resumenEjecutivo?.totalSkus || 0) / 100)} de ${formatNumber(data.resumenEjecutivo?.totalSkus || 0)} SKUs`}
               color="red"
-              tooltip="% de SKUs con cobertura < 7 días."
+              tooltip="Porcentaje de SKUs con cobertura menor a 7 días. Requieren reposición urgente para evitar quiebre de stock. Umbral: cobertura individual < 7 días. Se excluyen SKUs sin consumo registrado."
             />
           </div>
 
@@ -551,21 +525,11 @@ export default function StockPage() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Distribución de Cobertura por Rango
                 </h2>
-                <div className="group relative inline-block">
-                  <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
-                    <div className="text-xs leading-relaxed">
-                      Muestra cómo se distribuyen los SKUs según su cobertura en días. 
-                      Permite visualizar la concentración de productos en cada rango de cobertura (crítico, bajo, saludable, alto, sobrestock).
-                    </div>
-                    <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
-                  </div>
-                </div>
+                <InfoTooltip
+                  title="¿Qué muestra este gráfico?"
+                  content="Cantidad de SKUs por rango de cobertura en días. Rangos: 0 días = sin stock o sin consumo registrado | 1–7 días = riesgo crítico (rojo) | 7–15 días = bajo (naranja) | 15–120 días = saludable (verde) | 120–180 días = alto (amarillo) | >180 días = sobrestock (naranja oscuro)."
+                  position="right"
+                />
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -576,9 +540,24 @@ export default function StockPage() {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
                 />
                 <label htmlFor="excluirCeroDias" className="text-sm text-gray-700 dark:text-gray-300">
-                  Excluir "0 días"
+                  Excluir SKUs sin consumo registrado (cobertura = 0)
                 </label>
               </div>
+            </div>
+            <div className="flex flex-wrap gap-3 mb-3 text-xs">
+              {[
+                { color: '#6b7280', label: 'Sin consumo (0d)' },
+                { color: '#ef4444', label: 'Crítico (1–7d)' },
+                { color: '#f97316', label: 'Bajo (7–15d)' },
+                { color: '#22c55e', label: 'Saludable (15–120d)' },
+                { color: '#eab308', label: 'Alto (120–180d)' },
+                { color: '#ea580c', label: 'Sobrestock (>180d)' },
+              ].map(({ color, label }) => (
+                <span key={label} className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                  <span className="w-3 h-3 rounded-sm inline-block flex-shrink-0" style={{ backgroundColor: color }} />
+                  {label}
+                </span>
+              ))}
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={distribucionFiltrada} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
@@ -591,7 +570,8 @@ export default function StockPage() {
                   tick={{ fontSize: 11 }}
                 />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatNumber(Number(value))} />
-                <Tooltip 
+                <Tooltip
+                  cursor={false}
                   formatter={(value: any, name: any) => {
                     if (name === 'cantidadSkus') {
                       return [formatNumber(Number(value)), 'Cantidad SKUs'];
@@ -610,15 +590,26 @@ export default function StockPage() {
                   itemStyle={{ color: '#f3f4f6' }}
                 />
                 <Legend />
-                <Bar 
-                  dataKey="cantidadSkus" 
-                  fill="#3b82f6" 
+                <Bar
+                  dataKey="cantidadSkus"
                   name="Cantidad SKUs"
                   fillOpacity={1}
                   stroke="transparent"
                   strokeWidth={0}
                   radius={[4, 4, 0, 0]}
-                />
+                >
+                  {distribucionFiltrada.map((entry, index) => {
+                    const rango = String(entry.rango ?? '');
+                    let color = '#3b82f6';
+                    if (rango === '0 días' || rango === '0')                       color = '#6b7280';
+                    else if (/^1[\s–-]?7/.test(rango) || rango.includes('1-7'))   color = '#ef4444';
+                    else if (/^7[\s–-]?15/.test(rango) || rango.includes('7-15')) color = '#f97316';
+                    else if (/^15[\s–-]/.test(rango) || rango.includes('15-'))    color = '#22c55e';
+                    else if (/^120[\s–-]/.test(rango) || rango.includes('120-'))  color = '#eab308';
+                    else if (rango.includes('180') || rango.startsWith('>'))       color = '#ea580c';
+                    return <Cell key={`cell-${index}`} fill={color} />;
+                  })}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -630,21 +621,11 @@ export default function StockPage() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Estado de Stock
                 </h2>
-                <div className="group relative inline-block">
-                  <div className="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 w-80 -top-2 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <div className="font-semibold mb-1">¿Qué muestra este gráfico?</div>
-                    <div className="text-xs leading-relaxed">
-                      Muestra la distribución de SKUs por estado de stock: Crítico (sin stock), Bajo (menos de 7 días), 
-                      Saludable (7-120 días), Alto (120-180 días) y Sobrestock (más de 180 días).
-                    </div>
-                    <div className="absolute -right-2 top-3 w-0 h-0 border-l-8 border-l-gray-900 border-y-4 border-y-transparent"></div>
-                  </div>
-                </div>
+                <InfoTooltip
+                  title="¿Qué muestra este gráfico?"
+                  content="Muestra la distribución de SKUs por estado de stock: Crítico (sin stock), Bajo (menos de 7 días), Saludable (7-120 días), Alto (120-180 días) y Sobrestock (más de 180 días)."
+                  position="right"
+                />
               </div>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
@@ -652,8 +633,8 @@ export default function StockPage() {
                     data={data.stockEstado || []}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${((percent || 0) * 100).toFixed(0)}%`}
+                    labelLine={true}
+                    label={({ name, percent }) => percent && percent > 0.04 ? `${name}: ${((percent || 0) * 100).toFixed(0)}%` : ''}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
