@@ -332,7 +332,7 @@ export const stockRoute = async (app: FastifyInstance): Promise<void> => {
         return reply.send(responseData);
 
       } catch (error) {
-        console.error("Error en stock route:", error);
+        request.log.error({ endpoint: "/stock", error: error instanceof Error ? error.message : String(error) });
         return reply.status(500).send(
           errorResponse("INTERNAL_ERROR", "Error interno del servidor")
         );

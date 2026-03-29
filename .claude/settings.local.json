@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:\\\\Work\\\\Tecsidel\\\\sega-cockpit\\\\.claude\\\\worktrees\\\\romantic-kirch\" remote get-url origin)",
+      "Bash(echo \"$GITHUB_TOKEN:-\")",
+      "Bash(echo \"$GH_TOKEN:-\")",
+      "Bash(git -C C:WorkTecsidelsega-cockpit config --get credential.helper)",
+      "Bash(printf \"protocol=https\\\\nhost=github.com\\\\n\")",
+      "Bash(git credential:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

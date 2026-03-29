@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
       params.append('sku', sku.trim());
     }
     
-    console.log('Calling backend:', `${backendUrl}/stock?${params}`);
     
     const response = await fetch(`${backendUrl}/stock?${params}`, {
       method: 'GET',
@@ -25,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Backend error:', response.status, errorText);
       return NextResponse.json(
         { 
           ok: false, 
@@ -40,7 +38,6 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('Backend response:', data);
     
     return NextResponse.json({
       ok: true,
@@ -48,7 +45,6 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in stock API:', error);
     return NextResponse.json(
       { 
         ok: false, 

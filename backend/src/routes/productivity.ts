@@ -61,7 +61,6 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
       // Check cache first
       const cached = cache.get(cacheKey);
       if (cached) {
-        console.log('Cache hit for productivity');
         return reply.send(cached);
       }
       
@@ -404,14 +403,6 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           `);
 
         // Procesar resultados
-        console.log('=== RAW RESULTS ===');
-        console.log('Daily result:', dailyResult.recordset);
-        console.log('ByUOM result:', byUomResult.recordset);
-        console.log('KPIs result:', kpisResult.recordset);
-        console.log('PerOperator result:', perOperatorResult.recordset);
-        console.log('DailyPerOperator result:', dailyPerOperatorResult.recordset);
-        console.log('DailyDetailGrid result:', dailyDetailGridResult.recordset);
-        
         const daily = dailyResult.recordset.map((row: any) => ({
           fecha_operativa: row.fecha_operativa,
           unidades: row.unidades || 0,
@@ -498,14 +489,6 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
           productividad: parseFloat(row.productividad || 0)
         }));
 
-        console.log('=== PROCESSED RESULTS ===');
-        console.log('Daily processed:', daily);
-        console.log('Cards processed:', cards);
-        console.log('PerOperator processed:', perOperatorWithPercentiles);
-        console.log('Benchmark calculated:', benchmark);
-        console.log('DailyPerOperator processed:', dailyPerOperator);
-        console.log('DailyDetailGrid processed:', dailyDetailGrid);
-
         // Estructurar respuesta
         const response = {
           from: from_date,
@@ -523,13 +506,12 @@ export const productivityRoute = async (app: FastifyInstance): Promise<void> => 
         const cacheTtl = 60; // 1 minuto
         cache.set(cacheKey, response);
 
-        console.log('Productivity response generated successfully');
+        request.log.info({ endpoint: "/productividad", durationMs: Date.now() - startedAt, cache: "miss" });
 
         return reply.send(response);
 
       } catch (error) {
-        console.error('Productivity error:', error);
-        
+        request.log.error({ endpoint: "/productividad", error: error instanceof Error ? error.message : String(error) });
         const errorRes = {
           ok: false,
           error: { 

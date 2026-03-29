@@ -37,7 +37,6 @@ export async function GET(request: NextRequest) {
     
     const backendUrl = `${process.env.BACKEND_URL || 'http://localhost:3001'}/productividad?${params}`;
     
-    console.log('Forwarding to backend:', backendUrl);
     
     const response = await fetch(backendUrl);
     
@@ -50,7 +49,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
     
   } catch (error) {
-    console.error('Productivity API error:', error);
     return NextResponse.json(
       { 
         ok: false, 

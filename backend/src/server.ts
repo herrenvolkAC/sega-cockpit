@@ -9,9 +9,30 @@ import recepcionesRoute from "./routes/recepciones";
 import { stockRoute } from "./routes/stock";
 import { stockAlmacenajeRoute } from "./routes/stock-almacenaje";
 import { expedicionesRoute } from "./routes/expediciones";
+import { slottingRoute } from "./routes/slotting";
 
 const app = Fastify({
   logger: true,
+});
+
+app.setErrorHandler((error, request, reply) => {
+  request.log.error({
+    endpoint: request.url,
+    method: request.method,
+    error: error.message,
+    statusCode: error.statusCode ?? 500,
+  });
+  const statusCode = error.statusCode ?? 500;
+  reply.status(statusCode).send({
+    ok: false,
+    error: {
+      code: statusCode === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
+      message:
+        statusCode < 500
+          ? error.message
+          : "An unexpected error occurred",
+    },
+  });
 });
 
 const start = async (): Promise<void> => {
@@ -25,6 +46,7 @@ const start = async (): Promise<void> => {
     await app.register(stockRoute);
     await app.register(stockAlmacenajeRoute);
     await app.register(expedicionesRoute);
+    await app.register(slottingRoute);
 
     await app.listen({ port: config.port, host: "0.0.0.0" });
   } catch (err) {

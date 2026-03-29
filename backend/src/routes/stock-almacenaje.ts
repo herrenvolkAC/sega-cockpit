@@ -26,26 +26,13 @@ const extractDatabaseName = (connectionString: string): string => {
   }
 };
 
-// Helper para ejecutar queries con medición de tiempo
-const executeWithTiming = async (pool: any, query: string, inputs: any[] = [], queryName: string) => {
-  const startTime = Date.now();
-  try {
-    const request = pool.request();
-    inputs.forEach(input => {
-      request.input(input.name, input.type, input.value);
-    });
-    
-    const result = await request.query(query);
-    const duration = Date.now() - startTime;
-    
-    console.log(`[Query] ${queryName}: ${duration}ms, ${result.recordset.length} filas`);
-    
-    return result;
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`[Query ERROR] ${queryName}: ${duration}ms, Error: ${error}`);
-    throw error;
-  }
+// Helper para ejecutar queries con inputs
+const executeWithTiming = async (pool: any, query: string, inputs: any[] = [], _queryName: string) => {
+  const request = pool.request();
+  inputs.forEach(input => {
+    request.input(input.name, input.type, input.value);
+  });
+  return request.query(query);
 };
 
 export const stockAlmacenajeRoute = async (app: FastifyInstance): Promise<void> => {
@@ -59,10 +46,6 @@ export const stockAlmacenajeRoute = async (app: FastifyInstance): Promise<void> 
       const sku = query.sku as string;
       const proveedor = query.proveedor as string;
       
-      console.log({
-        endpoint: "/stock-almacenaje",
-        params: { sku, proveedor }
-      });
 
       // Crear cache key basado en los filtros
       const cacheKey = `stock-almacenaje_${sku || 'all'}_${proveedor || 'all'}`;
@@ -302,23 +285,13 @@ export const stockAlmacenajeRoute = async (app: FastifyInstance): Promise<void> 
         
         cache.set(cacheKey, response);
 
-        console.log({
-          endpoint: "/stock-almacenaje",
-          durationMs: Date.now() - startedAt,
-          cache: "miss",
-          sku,
-          proveedor,
-          cacheTtl: cacheTtlValue,
-        });
-
+        request.log.info({ endpoint: "/stock-almacenaje", durationMs: Date.now() - startedAt, cache: "miss" });
         return response;
       } catch (error) {
-        console.error({
+        request.log.error({
           endpoint: "/stock-almacenaje",
           error: error instanceof Error ? error.message : String(error),
           durationMs: Date.now() - startedAt,
-          sku,
-          proveedor,
         });
 
         const errorRes = errorResponse(

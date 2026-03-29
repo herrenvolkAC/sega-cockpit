@@ -54,7 +54,7 @@ export default function ExpandableGrid({
             [rowKey]: details
           }));
         } catch (error) {
-          console.error('Error loading detail data:', error);
+
         } finally {
           setLoadingDetails(prev => {
             const updated = new Set(prev);

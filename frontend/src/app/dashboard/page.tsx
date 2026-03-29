@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { clientName } from "@/lib/env";
 import { BasicThemeToggle } from "@/components/BasicThemeToggle";
 import {
   LineChart,
@@ -211,7 +212,7 @@ export default function DashboardPage() {
     <main className="p-6 text-gray-800 dark:text-gray-100">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">FullFillment - Macromercado</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">FullFillment - {clientName}</h1>
           <p className="text-gray-600 dark:text-gray-400">Panel de control de ventas</p>
         </div>
         <BasicThemeToggle />

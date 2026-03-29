@@ -171,10 +171,7 @@ export const statusRoute = async (app: FastifyInstance): Promise<void> => {
         });
         return response;
       } catch (err) {
-        console.error("Database error details:", err);
-        
         if (isMissingViewError(err, "v_monitor_kpis")) {
-          console.log("View v_monitor_kpis not found, returning mock data");
           const response = buildMock(sector);
           cache.set(cacheKey, response);
           request.log.warn({
