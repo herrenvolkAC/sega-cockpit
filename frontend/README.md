@@ -20,6 +20,26 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Environment Variables
+
+The frontend proxies data from the backend BFF using server-side API routes under `app/api/*`.
+Set `BACKEND_BASE_URL` so those routes can reach the backend.
+
+Example `.env.local`:
+
+```bash
+BACKEND_BASE_URL=http://localhost:3001
+NEXT_PUBLIC_REFRESH_SECONDS=30
+NEXT_PUBLIC_LAG_WARN_MINUTES=5
+NEXT_PUBLIC_FETCH_TIMEOUT_MS=4000
+```
+
+Variables:
+- `BACKEND_BASE_URL`: Required. Base URL for the backend BFF. Used only on the server.
+- `NEXT_PUBLIC_REFRESH_SECONDS`: Optional. UI polling refresh interval in seconds. Default `30`.
+- `NEXT_PUBLIC_LAG_WARN_MINUTES`: Optional. Threshold in minutes to highlight replication lag. Default `5`.
+- `NEXT_PUBLIC_FETCH_TIMEOUT_MS`: Optional. Timeout for backend fetches in milliseconds. Default `4000`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

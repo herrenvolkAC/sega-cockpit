@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { clientName } from "@/lib/env";
 import { BasicThemeToggle } from "@/components/BasicThemeToggle";
+import InfoTooltip from "@/components/dashboard/InfoTooltip";
 import {
   LineChart,
   Line,
@@ -223,7 +224,10 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Ventas</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Total Ventas</p>
+                <InfoTooltip text="Suma de ventas del período visible (ARS). Incluye todas las categorías." />
+              </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatCurrency(data.totalVentas)}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
@@ -235,7 +239,10 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Pedidos</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Total Pedidos</p>
+                <InfoTooltip text="Cantidad total de pedidos del período." />
+              </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{data.totalPedidos}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
@@ -247,7 +254,10 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Pendientes</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Pendientes</p>
+                <InfoTooltip text="Pedidos en estado pendiente al cierre del período." />
+              </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{data.pedidosPendientes}</p>
             </div>
             <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
@@ -259,7 +269,10 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Tasa Cancelación</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Tasa Cancelación</p>
+                <InfoTooltip text="% de pedidos cancelados sobre el total del período." />
+              </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{data.tasaCancelacion.toFixed(1)}%</p>
             </div>
             <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
@@ -273,7 +286,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Gráfico de Líneas - Ventas por Día */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Ventas y Pedidos por Día</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Ventas y Pedidos por Día</h2>
+            <InfoTooltip text="Evolución diaria de ventas (eje izq., ARS) y cantidad de pedidos (eje der.)." />
+          </div>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data.ventasPorDia}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -326,7 +342,10 @@ export default function DashboardPage() {
 
         {/* Gráfico de Pie - Pedidos por Estado */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Pedidos por Estado</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Pedidos por Estado</h2>
+            <InfoTooltip text="Distribución de pedidos por estado (Completado/En Progreso/Pendiente/Cancelado)." />
+          </div>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
@@ -358,7 +377,10 @@ export default function DashboardPage() {
 
       {/* Gráfico de Barras - Categorías de Ventas */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 mb-8">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Ventas por Categoría</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Ventas por Categoría</h2>
+          <InfoTooltip text="Monto total de ventas por categoría (ARS) en el período." />
+        </div>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.categoriasVentas}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

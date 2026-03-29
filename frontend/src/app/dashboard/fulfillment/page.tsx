@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import InfoTooltip from '@/components/dashboard/InfoTooltip';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from "recharts";
-import { InfoTooltip } from '@/components/InfoTooltip';
-import { clientName } from "@/lib/env";
 
 // CSS for animations and custom chart styles
 const styles = `
@@ -107,7 +106,10 @@ export default function FulfillmentPage() {
   // Fetch data from API con filtros de fecha y SKU (debounced)
   const fetchFulfillmentData = useCallback(
     async () => {
+      console.log('fetchFulfillmentData called with:', { fechaInicio, fechaFin, sku: skuRef.current });
+      
       if (!fechaInicio || !fechaFin) {
+        console.log('Fechas no definidas, no se realiza la consulta');
         return;
       }
 
@@ -129,6 +131,8 @@ export default function FulfillmentPage() {
         }
         
         const url = `/fulfillment?${params}`;
+        console.log('Requesting URL:', url);
+        
         const response = await fetch(url);
         const result = await response.json();
         
@@ -154,7 +158,8 @@ export default function FulfillmentPage() {
         }
         
         setData(result);
-      } catch {
+      } catch (error) {
+        console.error('Error fetching fulfillment data:', error);
         alert('Error al cargar los datos. Por favor intente nuevamente.');
       } finally {
         setLoading(false);
@@ -166,7 +171,10 @@ export default function FulfillmentPage() {
   // Fetch benchmark data
   const fetchBenchmarkData = useCallback(
     async () => {
+      console.log('fetchBenchmarkData called with:', { fechaInicio, fechaFin, sku: skuRef.current });
+      
       if (!fechaInicio || !fechaFin) {
+        console.log('Fechas no definidas, no se realiza la consulta de benchmark');
         return;
       }
       
@@ -181,6 +189,8 @@ export default function FulfillmentPage() {
         }
         
         const url = `/fulfillment/benchmark?${params}`;
+        console.log('Requesting benchmark URL:', url);
+        
         const response = await fetch(url);
         const result = await response.json();
         
@@ -189,7 +199,8 @@ export default function FulfillmentPage() {
         }
         
         setBenchmarkData(result);
-      } catch {
+      } catch (error) {
+        console.error('Error fetching benchmark data:', error);
         setBenchmarkData(null);
       }
     },
@@ -202,10 +213,14 @@ export default function FulfillmentPage() {
     [fetchFulfillmentData]
   );
 
-  // Cargar datos iniciales
+  // Cargar datos iniciales (últimos 90 días por defecto)
   useEffect(() => {
-    setFechaInicio('2025-01-01');
-    setFechaFin('2025-02-01');
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const today = new Date();
+    
+    setFechaInicio(ninetyDaysAgo.toISOString().split('T')[0]);
+    setFechaFin(today.toISOString().split('T')[0]);
   }, []);
 
   // Cargar datos de benchmark cuando cambian las fechas
@@ -232,48 +247,38 @@ export default function FulfillmentPage() {
     
     return [minY, maxY];
   }, [benchmarkData]);
-
-  // Dominio dinámico para % Fulfillment diario
-  const dailyFulfillmentDomain = useMemo(() => {
-    if (!data?.pedidosPorDia?.length) return [60, 100];
-    const values = data.pedidosPorDia.map(d => d.fulfillment_pct);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    return [Math.max(0, Math.floor(min - 3)), Math.min(100, Math.ceil(max + 2))];
-  }, [data]);
-
   const kpiCards = useMemo(() => {
     if (!data) return [];
+    
     return [
       {
         title: "Total Pedidos",
         value: formatNumber(data.totalPedidos),
         subtitle: "Pedidos procesados",
         color: "blue" as const,
-        tooltip: "Cantidad de pedidos procesados en el período. Un pedido puede contener múltiples SKUs con cantidades solicitadas."
+        tooltip: "Pedidos procesados en el período."
       },
       {
         title: "Total Solicitado",
         value: formatNumber(data.totalSolicitado),
         subtitle: "Unidades solicitadas",
         color: "neutral" as const,
-        tooltip: "Suma total de unidades pedidas por los clientes en el período. Representa la demanda real a satisfacer."
+        tooltip: "Unidades solicitadas totales en el período."
       },
       {
         title: "Total Faltantes",
         value: formatNumber(data.totalFaltantes),
-        subtitle: `${data.totalSolicitado > 0 ? ((data.totalFaltantes / data.totalSolicitado) * 100).toFixed(1) : '0'}% del total solicitado`,
+        subtitle: "Unidades no entregadas",
         color: "red" as const,
-        tooltip: "Unidades que no pudieron ser entregadas por falta de stock disponible al momento del armado del pedido (shortage). A reducir al mínimo posible."
+        tooltip: "Unidades no entregadas en el período."
       },
       {
-        title: "Fill Rate",
+        title: "Tasa Satisfacción",
         value: `${data.tasaSatisfaccion.toFixed(1)}%`,
-        subtitle: "Unidades entregadas / solicitadas",
+        subtitle: "Fill Rate (Unidades)",
         color: data.tasaSatisfaccion >= 95 ? "green" as const :
                data.tasaSatisfaccion >= 90 ? "yellow" as const : "red" as const,
-        progress: { value: data.tasaSatisfaccion, target: 95 },
-        tooltip: "Fill Rate = (Unidades Entregadas / Unidades Solicitadas) × 100. Meta operativa: ≥ 95%. Verde ≥ 95%, Amarillo 90–95%, Rojo < 90%."
+        tooltip: "Fill Rate por unidades = entregado / solicitado."
       }
     ];
   }, [data]);
@@ -300,27 +305,100 @@ export default function FulfillmentPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Fulfillment | {clientName}
+              Fulfillment | Macromercado
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">Panel de control de cumplimiento de pedidos</p>
-            {data && fechaInicio && fechaFin && (
+            {data && (
               <div className="text-base text-gray-600 dark:text-gray-400 mt-1">
-                {new Date(fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}
-                {' – '}
-                {new Date(fechaFin + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}
-                {` · ${formatNumber(data.totalPedidos)} pedidos · `}
-                <span className={`font-semibold ${
-                  data.tasaSatisfaccion >= 95 ? 'text-green-600 dark:text-green-400' :
-                  data.tasaSatisfaccion >= 90 ? 'text-yellow-600 dark:text-yellow-400' :
-                  'text-red-600 dark:text-red-400'
-                }`}>
-                  {data.tasaSatisfaccion.toFixed(1)}% Fill Rate
-                </span>
-                {' (Meta 95%)'}
+                {(() => {
+                  try {
+                    console.log('=== DATE DEBUG ===');
+                    console.log('fechaInicio input:', fechaInicio);
+                    console.log('fechaFin input:', fechaFin);
+                    
+                    let startDateStr = 'Rango seleccionado';
+                    let endDateStr = '';
+                    
+                    // Usar directamente los valores de los inputs del frontend
+                    if (fechaInicio && fechaInicio !== null && fechaInicio !== undefined) {
+                      const date = new Date(fechaInicio);
+                      if (!isNaN(date.getTime())) {
+                        startDateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' });
+                      }
+                    }
+                    
+                    if (fechaFin && fechaFin !== null && fechaFin !== undefined) {
+                      const date = new Date(fechaFin);
+                      if (!isNaN(date.getTime())) {
+                        endDateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' });
+                      }
+                    }
+                    
+                    // Si ambas fechas son iguales, mostrar formato más claro
+                    if (startDateStr === endDateStr && startDateStr !== 'Rango seleccionado') {
+                      const date = new Date(fechaInicio);
+                      const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+                      return (
+                        <>
+                          {monthName} · {formatNumber(data.totalPedidos)} pedidos · 
+                          <span className={`font-semibold ${
+                            data.tasaSatisfaccion >= 95 ? 'text-green-600 dark:text-green-400' :
+                            data.tasaSatisfaccion >= 90 ? 'text-yellow-600 dark:text-yellow-400' :
+                            'text-red-600 dark:text-red-400'
+                          }`}>
+                            {data.tasaSatisfaccion.toFixed(1)}% Nivel de Servicio
+                          </span> (Meta 95%)
+                        </>
+                      );
+                    }
+                    
+                    if (startDateStr !== 'Rango seleccionado' && endDateStr) {
+                      return (
+                        <>
+                          {startDateStr} - {endDateStr} · {formatNumber(data.totalPedidos)} pedidos · 
+                          <span className={`font-semibold ${
+                            data.tasaSatisfaccion >= 95 ? 'text-green-600 dark:text-green-400' :
+                            data.tasaSatisfaccion >= 90 ? 'text-yellow-600 dark:text-yellow-400' :
+                            'text-red-600 dark:text-red-400'
+                          }`}>
+                            {data.tasaSatisfaccion.toFixed(1)}% Nivel de Servicio
+                          </span> (Meta 95%)
+                        </>
+                      );
+                    }
+                    
+                    if (startDateStr !== 'Rango seleccionado') {
+                      return (
+                        <>
+                          {startDateStr} · {formatNumber(data.totalPedidos)} pedidos · 
+                          <span className={`font-semibold ${
+                            data.tasaSatisfaccion >= 95 ? 'text-green-600 dark:text-green-400' :
+                            data.tasaSatisfaccion >= 90 ? 'text-yellow-600 dark:text-yellow-400' :
+                            'text-red-600 dark:text-red-400'
+                          }`}>
+                            {data.tasaSatisfaccion.toFixed(1)}% Nivel de Servicio
+                          </span> (Meta 95%)
+                        </>
+                      );
+                    }
+                    
+                    return (
+                      <>
+                        {startDateStr} · {formatNumber(data.totalPedidos)} pedidos · 
+                        <span className={`font-semibold ${
+                          data.tasaSatisfaccion >= 95 ? 'text-green-600 dark:text-green-400' :
+                          data.tasaSatisfaccion >= 90 ? 'text-yellow-600 dark:text-yellow-400' :
+                          'text-red-600 dark:text-red-400'
+                        }`}>
+                          {data.tasaSatisfaccion.toFixed(1)}% Nivel de Servicio
+                        </span> (Meta 95%)
+                      </>
+                    );
+                  } catch (error) {
+                    console.log('Date formatting error:', error);
+                    return 'Rango seleccionado · ';
+                  }
+                })()}
               </div>
-            )}
-            {!data && (
-              <p className="text-gray-500 dark:text-gray-400 mt-1">Seleccioná un rango de fechas y presioná Filtrar</p>
             )}
           </div>
           {data && (
@@ -390,11 +468,54 @@ export default function FulfillmentPage() {
               {loading ? 'Filtrando...' : 'Filtrar'}
             </button>
             <button
-              onClick={() => { setSku(''); setData(null); }}
+              onClick={() => {
+                setFechaInicio('');
+                setFechaFin('');
+                setSku('');
+                setData(null);
+              }}
               disabled={loading}
               className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               Limpiar
+            </button>
+            <button
+              onClick={() => {
+                // Simular datos保持原有逻辑
+                const simulatedData = {
+                  databaseName: "MACROMERCADO",
+                  fechaInicio: fechaInicio || "2025-01-01",
+                  fechaFin: fechaFin || "2025-01-31",
+                  totalPedidos: 4118,
+                  totalSolicitado: 125000,
+                  totalFaltantes: 8500,
+                  tasaSatisfaccion: 93.2,
+                  pedidosPorDia: [
+                    { dia: "01/01", pedidos: 145, qty_solicitada: 4200, faltantes: 280, entregados: 3920, fulfillment_pct: 93.3 },
+                    { dia: "02/01", pedidos: 132, qty_solicitada: 3800, faltantes: 320, entregados: 3480, fulfillment_pct: 91.6 },
+                    { dia: "03/01", pedidos: 156, qty_solicitada: 4500, faltantes: 180, entregados: 4320, fulfillment_pct: 96.0 },
+                    { dia: "04/01", pedidos: 128, qty_solicitada: 3700, faltantes: 410, entregados: 3290, fulfillment_pct: 88.9 },
+                    { dia: "05/01", pedidos: 167, qty_solicitada: 4800, faltantes: 290, entregados: 4510, fulfillment_pct: 94.0 }
+                  ],
+                  estadoFulfillment: [
+                    { name: "Entregado", value: 93.2, color: "#10b981" },
+                    { name: "Faltante", value: 6.8, color: "#ef4444" }
+                  ],
+                  productosConShortage: [
+                    { sku: "SKU12345", name: "Producto A - SKU12345", qty_solicitada: 1000, shortage: 450, entregados: 550 },
+                    { sku: "SKU67890", name: "Producto B - SKU67890", qty_solicitada: 800, shortage: 380, entregados: 420 },
+                    { sku: "SKU11111", name: "Producto C - SKU11111", qty_solicitada: 900, shortage: 320, entregados: 580 },
+                    { sku: "SKU22222", name: "Producto D - SKU22222", qty_solicitada: 750, shortage: 290, entregados: 460 },
+                    { sku: "SKU33333", name: "Producto E - SKU33333", qty_solicitada: 650, shortage: 260, entregados: 390 }
+                  ],
+                  generatedAt: new Date().toISOString()
+                };
+                setData(simulatedData);
+              }}
+              disabled={loading}
+              className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              Simular datos
             </button>
           </div>
         </div>
@@ -457,35 +578,72 @@ export default function FulfillmentPage() {
       {data && data.totalPedidos > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {kpiCards.map((kpi: any, index: number) => (
-            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 animate-fade-in relative">
-              {kpi.tooltip && <div className="absolute top-2 right-2"><InfoTooltip content={kpi.tooltip} /></div>}
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 pr-6">{kpi.title}</p>
-              <p className={`text-3xl font-semibold mb-1 ${
-                kpi.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                kpi.color === 'red' ? 'text-red-700 dark:text-red-400' :
-                kpi.color === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' :
-                kpi.color === 'neutral' ? 'text-gray-900 dark:text-gray-100' :
-                'text-blue-600 dark:text-blue-400'
-              }`}>
-                {kpi.value}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{kpi.subtitle}</p>
-              {kpi.progress && (
-                <div className="mt-3">
-                  <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        kpi.progress.value >= kpi.progress.target ? 'bg-green-500' :
-                        kpi.progress.value >= 90 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${Math.min(100, (kpi.progress.value / kpi.progress.target) * 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Meta: {kpi.progress.target}%</p>
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-7 border border-gray-200 dark:border-gray-700 animate-fade-in">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{kpi.title}</p>
+                  {kpi.tooltip && <InfoTooltip text={kpi.tooltip} />}
                 </div>
-              )}
+                <p className={`text-3xl font-semibold mb-1 ${
+                  kpi.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                  kpi.color === 'red' ? 'text-red-700 dark:text-red-400' :
+                  kpi.color === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' :
+                  kpi.color === 'neutral' ? 'text-gray-900 dark:text-gray-100' :
+                  'text-blue-600 dark:text-blue-400'
+                }`}>
+                  {kpi.value}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{kpi.subtitle}</p>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Benchmark Histórico */}
+      {benchmarkData && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 animate-fade-in">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Contexto Histórico (10 meses)
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Nivel actual</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                {benchmarkData.nivelActual.toFixed(1)}%
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Promedio histórico</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                {benchmarkData.promedioHistorico.toFixed(1)}%
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Mejor mes</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                {benchmarkData.mejorMes.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div className="text-center">
+              <p className={`text-lg font-medium ${
+                benchmarkData.brechaVsPromedio >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {benchmarkData.brechaVsPromedio >= 0 ? '+' : ''}{benchmarkData.brechaVsPromedio.toFixed(1)} pp vs promedio
+              </p>
+            </div>
+            <div className="text-center">
+              <p className={`text-lg font-medium ${
+                benchmarkData.brechaVsMejor >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {benchmarkData.brechaVsMejor >= 0 ? '+' : ''}{benchmarkData.brechaVsMejor.toFixed(1)} pp vs mejor mes
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -494,39 +652,58 @@ export default function FulfillmentPage() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* Line Chart - Pedidos y Faltantes */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
-              <div className="absolute top-2 right-2">
-                <InfoTooltip content="Evolución diaria del volumen. Eje izquierdo (azul/verde): unidades solicitadas y entregadas. Eje derecho (rojo): faltantes en escala independiente para que sean visibles aunque sean una fracción del total. El área entre solicitado y entregado es el shortage diario." />
-              </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Pedidos y Faltantes por Día
-                </h2>
-                <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-blue-500"></span>Solicitado</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-green-600"></span>Entregado</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-600"></span>Faltantes →</span>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    Pedidos y Faltantes por Día
+                  </h2>
+                  <InfoTooltip text="Solicitado, entregado y faltantes por día (unidades)." />
+                </div>
+                <div className="flex gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-0.5 bg-blue-500"></div>
+                    <span className="text-gray-600 dark:text-gray-400">Solicitado</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-0.5 bg-green-600"></div>
+                    <span className="text-gray-600 dark:text-gray-400">Entregado</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-0.5 bg-red-700"></div>
+                    <span className="text-gray-600 dark:text-gray-400">Faltantes</span>
+                  </div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data.pedidosPorDia}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.3} />
                   <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v) => formatNumber(Number(v))} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => formatNumber(Number(v))} />
-                  <Tooltip
-                    cursor={false}
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatNumber(Number(value))} />
+                  <Tooltip 
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
-                        const d = payload[0].payload;
+                        const data = payload[0].payload;
                         return (
-                          <div className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 shadow-lg text-sm">
-                            <p className="font-semibold text-gray-100 mb-1">{label}</p>
-                            <div className="space-y-0.5 text-gray-300">
-                              <div className="flex justify-between gap-4"><span>Solicitado:</span><span className="text-blue-400 font-medium">{formatNumber(d.qty_solicitada)}</span></div>
-                              <div className="flex justify-between gap-4"><span>Entregado:</span><span className="text-green-400 font-medium">{formatNumber(d.entregados)}</span></div>
-                              <div className="flex justify-between gap-4"><span>Faltantes:</span><span className="text-red-400 font-medium">{formatNumber(d.faltantes)}</span></div>
-                              <div className="flex justify-between gap-4"><span>Fill Rate:</span><span className="text-white font-medium">{d.fulfillment_pct.toFixed(1)}%</span></div>
+                          <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{label}</p>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600 dark:text-gray-400">Solicitado:</span>
+                                <span className="font-medium text-blue-600 dark:text-blue-400">{formatNumber(data.qty_solicitada)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600 dark:text-gray-400">Entregado:</span>
+                                <span className="font-medium text-green-600 dark:text-green-400">{formatNumber(data.entregados)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600 dark:text-gray-400">Faltantes:</span>
+                                <span className="font-medium text-red-700 dark:text-red-400">{formatNumber(data.faltantes)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600 dark:text-gray-400">% del día:</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">{data.fulfillment_pct.toFixed(1)}%</span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -534,24 +711,45 @@ export default function FulfillmentPage() {
                       return null;
                     }}
                   />
-                  <Line yAxisId="left" type="linear" dataKey="qty_solicitada" stroke="#3b82f6" strokeWidth={2} dot={false} name="Solicitado" />
-                  <Line yAxisId="left" type="linear" dataKey="entregados" stroke="#16a34a" strokeWidth={2} dot={false} name="Entregado" />
-                  <Line yAxisId="right" type="linear" dataKey="faltantes" stroke="#b91c1c" strokeWidth={2} dot={false} name="Faltantes" />
+                  <Line 
+                    type="linear" 
+                    dataKey="qty_solicitada" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    dot={false}
+                    name="Solicitado"
+                  />
+                  <Line 
+                    type="linear" 
+                    dataKey="entregados" 
+                    stroke="#16a34a" 
+                    strokeWidth={2}
+                    dot={false}
+                    name="Entregado"
+                  />
+                  <Line 
+                    type="linear" 
+                    dataKey="faltantes" 
+                    stroke="#b91c1c" 
+                    strokeWidth={2}
+                    dot={false}
+                    name="Faltantes"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
             
             {/* Estado de Fulfillment - Line Chart */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 relative">
-              <div className="absolute top-2 right-2">
-                <InfoTooltip content="Fill Rate diario = unidades entregadas / unidades solicitadas ese día. La línea punteada gris marca la meta del 95%. Los días en rojo están por debajo de la meta. El eje Y se ajusta automáticamente al rango real de datos." />
-              </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Fill Rate por Día
-                </h2>
-                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="w-3 h-0.5 bg-gray-400 border-dashed border-t"></div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    % Fulfillment por Día
+                  </h2>
+                  <InfoTooltip text="Fill Rate diario con meta 95%." />
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="w-3 h-0.5 bg-gray-400"></div>
                   <span>Meta 95%</span>
                 </div>
               </div>
@@ -559,9 +757,9 @@ export default function FulfillmentPage() {
                 <LineChart data={data.pedidosPorDia}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.3} />
                   <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    domain={dailyFulfillmentDomain}
-                    tick={{ fontSize: 11 }}
+                  <YAxis 
+                    domain={[60, 100]} 
+                    tick={{ fontSize: 11 }} 
                     tickFormatter={(value) => `${value}%`}
                   />
                   <Tooltip 
@@ -616,145 +814,85 @@ export default function FulfillmentPage() {
           </div>
 
           {/* Bar Chart - Top 10 Productos */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 relative">
-            <div className="absolute top-2 right-2">
-              <InfoTooltip content="Muestra los 10 SKUs con mayor cantidad de unidades faltantes en el período. Los primeros concentran la mayor parte del shortage total — atacarlos primero maximiza el impacto en el Fill Rate." />
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8">
+            <div className="mb-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  Top 10 Productos con más Faltantes
+                </h2>
+                <InfoTooltip text="SKUs con mayores faltantes absolutos en el período." />
+              </div>
+              {data.productosConShortage.length > 0 && (
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Los 3 principales SKUs concentran el {((data.productosConShortage.slice(0, 3).reduce((sum, p) => sum + p.shortage, 0) / data.totalFaltantes * 100).toFixed(1))}% de los faltantes del período
+                </div>
+              )}
             </div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
-              Top 10 Productos con más Faltantes
-            </h2>
-            {data.productosConShortage.length > 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Los 3 principales concentran el{' '}
-                <strong className="text-gray-700 dark:text-gray-300">
-                  {((data.productosConShortage.slice(0, 3).reduce((sum, p) => sum + p.shortage, 0) / data.totalFaltantes) * 100).toFixed(1)}%
-                </strong>{' '}
-                de los faltantes del período
-              </p>
-            )}
-            <ResponsiveContainer width="100%" height={Math.max(240, data.productosConShortage.slice(0, 10).length * 36)}>
-              <BarChart
-                layout="vertical"
-                data={data.productosConShortage.slice(0, 10).map((item) => ({
-                  ...item,
-                  label: (item.name || '').length > 35 ? (item.name || '').substring(0, 32) + '…' : (item.name || ''),
-                }))}
-                margin={{ top: 0, right: 60, left: 8, bottom: 0 }}
+            <ResponsiveContainer width="100%" height={450}>
+              <BarChart 
+                data={data.productosConShortage.slice(0, 10).map((item, index) => {
+                  // Truncado para nombres largos
+                  const originalName = item.name || '';
+                  const displayName = originalName.length > 20 ? 
+                    originalName.substring(0, 17) + '...' : 
+                    originalName;
+                  
+                  return {
+                    ...item,
+                    displayName: displayName,
+                    originalName: originalName // Guardar para tooltip
+                  };
+                })}
+                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} horizontal={false} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => formatNumber(Number(v))}
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" opacity={0.3} horizontal={true} vertical={false} />
+                <XAxis 
+                  dataKey="displayName"
+                  tick={{ fontSize: 9 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
                 />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  width={200}
-                  tick={{ fontSize: 11 }}
+                <YAxis 
+                  tick={{ fontSize: 11 }} 
+                  tickFormatter={(value) => formatNumber(Number(value))}
                 />
-                <Tooltip
-                  cursor={false}
+                <Tooltip 
                   content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const item = payload[0].payload;
-                    const pct = data.totalFaltantes > 0
-                      ? ((item.shortage / data.totalFaltantes) * 100).toFixed(1)
-                      : '0';
-                    return (
-                      <div className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 shadow-lg text-sm">
-                        <p className="font-semibold text-gray-100 mb-1">{item.name}</p>
-                        <div className="space-y-0.5 text-gray-300">
-                          <div className="flex justify-between gap-4">
-                            <span>Faltantes:</span>
-                            <span className="text-red-400 font-medium">{formatNumber(item.shortage)}</span>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <span>% del total:</span>
-                            <span className="text-white font-medium">{pct}%</span>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <span>Solicitado:</span>
-                            <span className="text-gray-300">{formatNumber(item.qty_solicitada)}</span>
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      const percentage = ((data.shortage / data.totalFaltantes) * 100).toFixed(1);
+                      return (
+                        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{data.originalName}</p>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-600 dark:text-gray-400">Faltantes:</span>
+                              <span className="font-medium text-red-700 dark:text-red-400">{formatNumber(data.shortage)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-600 dark:text-gray-400">% del total:</span>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">{percentage}%</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
+                      );
+                    }
+                    return null;
                   }}
                 />
-                <Bar
-                  dataKey="shortage"
-                  fill="#ef4444"
-                  radius={[0, 4, 4, 0]}
-                  label={{ position: 'right', fontSize: 11, fill: '#9ca3af', formatter: (v: any) => formatNumber(Number(v)) }}
+                <Bar 
+                  dataKey="shortage" 
+                  fill="#b91c1c"
+                  fillOpacity={1}
+                  stroke="transparent"
+                  strokeWidth={0}
+                  radius={[4, 4, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
-
-            {/* Tabla detalle Top 10 */}
-            {data.productosConShortage.length > 0 && (
-              <div className="mt-4 overflow-x-auto border-t border-gray-100 dark:border-gray-700 pt-4">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-2 px-3 font-medium">SKU</th>
-                      <th className="text-left py-2 px-3 font-medium">Producto</th>
-                      <th className="text-right py-2 px-3 font-medium">Faltantes</th>
-                      <th className="text-right py-2 px-3 font-medium">% del total</th>
-                      <th className="text-right py-2 px-3 font-medium">% Entregado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.productosConShortage.slice(0, 10).map((p, i) => {
-                      const pctTotal = data.totalFaltantes > 0 ? (p.shortage / data.totalFaltantes) * 100 : 0;
-                      const pctEntregado = p.qty_solicitada > 0 ? (p.entregados / p.qty_solicitada) * 100 : 0;
-                      return (
-                        <tr key={i} className={`border-b border-gray-100 dark:border-gray-700/50 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-gray-700/20'}`}>
-                          <td className="py-2 px-3 font-mono text-gray-500 dark:text-gray-400">{p.sku}</td>
-                          <td className="py-2 px-3 text-gray-700 dark:text-gray-300 max-w-[220px]">
-                            <span className="block truncate" title={p.name}>{p.name}</span>
-                          </td>
-                          <td className="py-2 px-3 text-right font-semibold text-red-600 dark:text-red-400">{formatNumber(p.shortage)}</td>
-                          <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400">{pctTotal.toFixed(1)}%</td>
-                          <td className="py-2 px-3 text-right">
-                            <span className={`font-medium ${pctEntregado >= 95 ? 'text-green-600 dark:text-green-400' : pctEntregado >= 80 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {p.qty_solicitada > 0 ? `${pctEntregado.toFixed(1)}%` : '—'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </>
-      )}
-
-      {/* Contexto Histórico — al final */}
-      {benchmarkData && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-8 animate-fade-in">
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Contexto Histórico ({benchmarkData.datosMensuales.length} meses)
-            </h2>
-            <InfoTooltip content="Comparación del Fill Rate del período consultado contra el histórico disponible. La brecha vs promedio indica si el período analizado está por encima o debajo del rendimiento habitual." />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {[
-              { label: 'Nivel período', value: `${benchmarkData.nivelActual.toFixed(1)}%`, neutral: true },
-              { label: 'Promedio histórico', value: `${benchmarkData.promedioHistorico.toFixed(1)}%`, neutral: true },
-              { label: 'Mejor mes', value: `${benchmarkData.mejorMes.toFixed(1)}%`, neutral: true },
-              { label: 'Vs promedio', value: `${benchmarkData.brechaVsPromedio >= 0 ? '+' : ''}${benchmarkData.brechaVsPromedio.toFixed(1)} pp`, positive: benchmarkData.brechaVsPromedio >= 0 },
-            ].map(({ label, value, neutral, positive }) => (
-              <div key={label} className="text-center p-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-                <p className={`text-xl font-semibold ${neutral ? 'text-gray-900 dark:text-gray-100' : positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* Gráfico Mensual Consolidado */}
@@ -763,9 +901,9 @@ export default function FulfillmentPage() {
           <div className="mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                Evolución Mensual — Fill Rate
+                Evolución Mensual - Nivel de Servicio
               </h2>
-              <InfoTooltip content="Tendencia mensual del Fill Rate (% de unidades entregadas sobre solicitadas). Permite identificar meses problemáticos y comparar la evolución del nivel de servicio a lo largo del tiempo." />
+              <InfoTooltip text="Fill Rate mensual vs promedio histórico." />
             </div>
           </div>
           <ResponsiveContainer width="100%" height={350}>
@@ -830,9 +968,33 @@ export default function FulfillmentPage() {
             </LineChart>
           </ResponsiveContainer>
           
-          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex gap-6">
-            <span>Rango: <strong className="text-gray-700 dark:text-gray-300">{Math.min(...benchmarkData.datosMensuales.map(d => d.nivelServicio)).toFixed(1)}% – {Math.max(...benchmarkData.datosMensuales.map(d => d.nivelServicio)).toFixed(1)}%</strong></span>
-            <span>Promedio: <strong className="text-gray-700 dark:text-gray-300">{benchmarkData.promedioHistorico.toFixed(1)}%</strong></span>
+          {/* Resumen textual debajo del gráfico */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+              <div>
+                Rango histórico (10 meses): {Math.min(...benchmarkData.datosMensuales.map(d => d.nivelServicio)).toFixed(1)}% – {Math.max(...benchmarkData.datosMensuales.map(d => d.nivelServicio)).toFixed(1)}%
+              </div>
+              <div>
+                Promedio histórico: <span className="font-medium text-gray-900 dark:text-gray-100">{benchmarkData.promedioHistorico.toFixed(1)}%</span>
+              </div>
+              <div>
+                Nivel actual: 
+                <span className={`font-medium ${
+                  benchmarkData.brechaVsPromedio > 0.5 ? 'text-green-600 dark:text-green-400' :
+                  benchmarkData.brechaVsPromedio < -0.5 ? 'text-red-600 dark:text-red-400' :
+                  'text-gray-500 dark:text-gray-400'
+                }`}>
+                  {benchmarkData.nivelActual.toFixed(1)}% 
+                </span>
+                <span className={`ml-1 ${
+                  benchmarkData.brechaVsPromedio > 0.5 ? 'text-green-600 dark:text-green-400' :
+                  benchmarkData.brechaVsPromedio < -0.5 ? 'text-red-600 dark:text-red-400' :
+                  'text-gray-500 dark:text-gray-400'
+                }`}>
+                  ({benchmarkData.brechaVsPromedio >= 0 ? '+' : ''}{benchmarkData.brechaVsPromedio.toFixed(1)} pp vs promedio)
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}
