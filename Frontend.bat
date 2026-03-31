@@ -1,3 +1,3 @@
 cd \
-cd Work\Tecsidel\sega-cockpit\.claude\worktrees\romantic-kirch\frontend
+cd Work\Tecsidel\sega-cockpit\frontend
 npm run dev
